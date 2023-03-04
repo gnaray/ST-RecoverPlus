@@ -111,10 +111,6 @@ object Form1: TForm1
     object TabSheetFaces: TTabSheet
       Caption = 'Surface'
       ImageIndex = 1
-      ExplicitLeft = 0
-      ExplicitTop = 0
-      ExplicitWidth = 0
-      ExplicitHeight = 0
       object ImageFace0: TImage
         Left = 19
         Top = 0

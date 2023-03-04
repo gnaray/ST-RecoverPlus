@@ -14,7 +14,7 @@
 #include "Analyse_disque.h"
 #include "Constantes.h"
 
-#include <strsafe.h>
+#include <math.h>
 
 //---------------------------------------------------------------------------
 #pragma package(smart_init)
@@ -44,10 +44,12 @@ __fastcall TForm1::TForm1(TComponent* Owner)
 {
 	PleaseCancelCurrentOperation=false;
 	ImageFace0->Picture->Bitmap->Canvas->Brush->Color=Form1->Color;
-	ImageFace0->Picture->Bitmap->SetSize(ImageFace0->ClientWidth,ImageFace0->ClientHeight);
+	ImageFace0->Picture->Bitmap->Width = ImageFace0->ClientWidth;
+	ImageFace0->Picture->Bitmap->Height = ImageFace0->ClientHeight;
 
 	ImageFace1->Picture->Bitmap->Canvas->Brush->Color=Form1->Color;
-	ImageFace1->Picture->Bitmap->SetSize(ImageFace1->ClientWidth,ImageFace1->ClientHeight);
+	ImageFace1->Picture->Bitmap->Width = ImageFace1->ClientWidth;
+	ImageFace1->Picture->Bitmap->Height = ImageFace1->ClientHeight;
 
 	PageControlResultats->ActivePage=TabSheetTablesFaces;
 
@@ -73,7 +75,8 @@ void __fastcall TForm1::ButtonReadDiskClick(TObject *Sender)
 		Form1->CheckBoxSauveInfosPistesBrutes->Checked ))
 	{
 		// on demande de choisir le fichier .ST à enregistrer.
-		if (SaveDialogImageDisque->Execute(Handle))
+                // The user to choose the .ST file to save.
+		if (SaveDialogImageDisque->Execute())
 		{
 			const DWORD instant_depart=GetTickCount();
 			const DWORD duree_autorisee=Temps_ComboBoxTempsMaxi_en_ms[ComboBoxTempsMaxi->ItemIndex];
@@ -119,26 +122,34 @@ void __fastcall TForm1::ButtonReadDiskClick(TObject *Sender)
 						piste=cldisq->infos_en_direct.Piste_Selectionnee;
 						face=cldisq->infos_en_direct.Face_Selectionnee;
 						secteur_base0=cldisq->infos_en_direct.Secteur_en_traitement_base0;
-						static char texteinfos[256];
-						StringCbPrintf(texteinfos,sizeof(texteinfos)-1,
+//						static char texteinfos[256];
+//						StringCbPrintf(texteinfos,sizeof(texteinfos)-1,
+//							"Track:%d Side/Head:%d Sector:%d",
+//							piste,face,secteur_base0+1);
+////						LabelInformation->Caption=textetemps;
+						LabelInformation->Caption=AnsiString().sprintf(
 							"Track:%d Side/Head:%d Sector:%d",
-							piste,face,secteur_base0+1);
-						LabelInformation->Caption=texteinfos;
+							piste,face,secteur_base0+1
+						);
 					}
 					static DWORD ancienne_seconde=temps_ecoule/1000;
 					if ((temps_ecoule/1000) != ancienne_seconde)
 					{
-						static char textetemps[256];
+//						static char textetemps[256];
 						DWORD d=temps_ecoule/1000;
 						const DWORD heure=d/3600;
 						d %= 3600;
 						const DWORD minute=d/60;
 						d %= 60;
 						const DWORD seconde=d;
-						StringCbPrintf(textetemps,sizeof(textetemps)-1,
+//						StringCbPrintf(textetemps,sizeof(textetemps)-1,
+//							"Time: %u:%02u:%02u",
+//							heure,minute,seconde);
+//						LabelTempsEcoule->Caption=textetemps;
+						LabelTempsEcoule->Caption=AnsiString().sprintf(
 							"Time: %u:%02u:%02u",
-							heure,minute,seconde);
-						LabelTempsEcoule->Caption=textetemps;
+							heure,minute,seconde
+						);
 						ancienne_seconde = temps_ecoule/1000;
 					}
 					Sleep(200);
@@ -279,10 +290,10 @@ void __fastcall TForm1::On_recover_maj_piste_FormAnalyse(TMessage &Message)
 			const double angle_fin_secteur=
 				(double)(ap->Headers[s].reltime+duree_secteur_en_microsecondes)
 				* PI2 / (double)ap->tracktime;
-			const double xdebut=Cos(angle_depart_secteur)*rayon_exterieur_piste;
-			const double ydebut=Sin(angle_depart_secteur)*rayon_exterieur_piste;
-			const double xfin=Cos(angle_fin_secteur)*rayon_exterieur_piste;
-			const double yfin=Sin(angle_fin_secteur)*rayon_exterieur_piste;
+			const double xdebut=cos(angle_depart_secteur)*rayon_exterieur_piste;
+			const double ydebut=sin(angle_depart_secteur)*rayon_exterieur_piste;
+			const double xfin=cos(angle_fin_secteur)*rayon_exterieur_piste;
+			const double yfin=sin(angle_fin_secteur)*rayon_exterieur_piste;
 
 			// petites macros pour se placer au centre de l'image, et pas à l'envers.
 			#define x(posXrelative) (200+(posXrelative))
@@ -378,11 +389,15 @@ bool	__fastcall TForm1::AnalyseDisquette(void)
 					) { 
 						piste=cldisq_analyse->infos_en_direct.Piste_Selectionnee;
 						face=cldisq_analyse->infos_en_direct.Face_Selectionnee;
-						static char texteinfos[256];
-						StringCbPrintf(texteinfos,sizeof(texteinfos)-1,
+//						static char texteinfos[256];
+//						StringCbPrintf(texteinfos,sizeof(texteinfos)-1,
+//							"Track:%d Side/Head:%d",
+//							piste,face);//,secteur+1);
+//						LabelInformation->Caption=texteinfos;
+						LabelInformation->Caption=AnsiString().sprintf(
 							"Track:%d Side/Head:%d",
-							piste,face);//,secteur+1);
-						LabelInformation->Caption=texteinfos;
+							piste,face
+						);//,secteur+1);
 					}
 					Sleep(200);
 				}

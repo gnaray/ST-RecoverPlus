@@ -9,16 +9,13 @@
 #pragma hdrstop
 //---------------------------------------------------------------------------
 USEFORM("Unit1.cpp", Form1);
-
-
-
 //---------------------------------------------------------------------------
 WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 {
 	try
 	{
 		Application->Initialize();
-		Application->Title = "ST Recover";
+		Application->Title = "ST RecoverPlus";
 		Application->CreateForm(__classid(TForm1), &Form1);
 		Application->Run();
 	}

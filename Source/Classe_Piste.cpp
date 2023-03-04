@@ -17,6 +17,7 @@
 //---------------------------------------------------------------------------
 
 #include <time.h>
+#include <math.h>
 
 
 	#define CP_NOMBRE_ESSAIS_DE_LECTURES_DE_SECTEURS (60)
@@ -28,6 +29,11 @@
 
 
 
+
+double log2(double x)
+{
+	return log(x)/log(2);
+}
 
 	#pragma pack(push) // All msdos data structures must be packed on a 1 byte boundary
 	#pragma pack (1)
@@ -265,7 +271,7 @@ bool	Classe_Piste::CP_identifie_secteurs_bruts( // Renvoie si "secteur_base0" a 
 								Resultat_Piste_Brute.Infos_Secteur[i3].ID_Piste=this->Piste_base0;
 								Resultat_Piste_Brute.Infos_Secteur[i3].ID_Face=this->Face_base0;
 								Resultat_Piste_Brute.Infos_Secteur[i3].ID_Taille=
-									Ln((double)classe_disquette->NbOctetsParSecteur/128.0)/Ln(2.0);
+									log2(classe_disquette->NbOctetsParSecteur/128.0);
 							}
 							else
 							{

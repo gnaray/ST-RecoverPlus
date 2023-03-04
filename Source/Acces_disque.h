@@ -8,6 +8,7 @@
 #define Acces_disqueH
 //---------------------------------------------------------------------------
 #include <Classes.hpp>
+#include <Grids.hpp>
 
 #include "Classe_Disquette.h"
 
