@@ -27,14 +27,14 @@ object GUIForm1: TGUIForm1
     Height = 13
     Caption = 'Information'
   end
-  object LabelTempsEcoule: TLabel
+  object LabelElapsedTime: TLabel
     Left = 812
     Top = 475
     Width = 62
     Height = 13
-    Caption = 'Ellapsed time'
+    Caption = 'Elapsed time'
   end
-  object ComboBoxDisque: TComboBox
+  object ComboBoxDisk: TComboBox
     Left = 12
     Top = 7
     Width = 32
@@ -66,7 +66,7 @@ object GUIForm1: TGUIForm1
     TabOrder = 1
     OnClick = ButtonAnalyseClick
   end
-  object CheckBoxSauveInfosPistesBrutes: TCheckBox
+  object CheckBoxSaveRawTrackInfos: TCheckBox
     Left = 355
     Top = 19
     Width = 185
@@ -74,27 +74,27 @@ object GUIForm1: TGUIForm1
     Caption = 'Save track information (debug)'
     TabOrder = 7
   end
-  object BitBtnAnnule: TBitBtn
+  object BitBtnCancel: TBitBtn
     Left = 744
     Top = 7
     Width = 136
     Height = 25
     Enabled = False
     TabOrder = 2
-    OnClick = BitBtnAnnuleClick
+    OnClick = BitBtnCancelClick
     Kind = bkAbort
   end
-  object PageControlResultats: TPageControl
+  object PageControlResults: TPageControl
     Left = 0
     Top = 37
     Width = 886
     Height = 431
-    ActivePage = TabSheetFaces
+    ActivePage = TabSheetSides
     TabIndex = 1
     TabOrder = 3
-    object TabSheetTablesFaces: TTabSheet
+    object TabSheetSidesGrids: TTabSheet
       Caption = 'Tables'
-      object DrawGridSecteursFaceA: TDrawGrid
+      object DrawGridSideASectors: TDrawGrid
         Left = 2
         Top = 2
         Width = 876
@@ -109,10 +109,10 @@ object GUIForm1: TGUIForm1
         ParentShowHint = False
         ShowHint = True
         TabOrder = 0
-        OnDrawCell = DrawGridSecteursFaceADrawCell
-        OnMouseMove = DrawGridSecteursFaceAMouseMove
+        OnDrawCell = DrawGridSideASectorsDrawCell
+        OnMouseMove = DrawGridSideASectorsMouseMove
       end
-      object DrawGridSecteursFaceB: TDrawGrid
+      object DrawGridSideBSectors: TDrawGrid
         Left = 2
         Top = 204
         Width = 876
@@ -127,20 +127,20 @@ object GUIForm1: TGUIForm1
         ParentShowHint = False
         ShowHint = True
         TabOrder = 1
-        OnDrawCell = DrawGridSecteursFaceADrawCell
-        OnMouseMove = DrawGridSecteursFaceAMouseMove
+        OnDrawCell = DrawGridSideASectorsDrawCell
+        OnMouseMove = DrawGridSideASectorsMouseMove
       end
     end
-    object TabSheetFaces: TTabSheet
+    object TabSheetSides: TTabSheet
       Caption = 'Surface'
       ImageIndex = 1
-      object ImageFace0: TImage
+      object ImageSide0: TImage
         Left = 19
         Top = 0
         Width = 406
         Height = 418
       end
-      object ImageFace1: TImage
+      object ImageSide1: TImage
         Left = 453
         Top = 0
         Width = 406
@@ -148,7 +148,7 @@ object GUIForm1: TGUIForm1
       end
     end
   end
-  object ComboBoxTempsMaxi: TComboBox
+  object ComboBoxMaxiTime: TComboBox
     Left = 67
     Top = 472
     Width = 191
@@ -178,7 +178,7 @@ object GUIForm1: TGUIForm1
     ScrollBars = ssVertical
     TabOrder = 6
   end
-  object SaveDialogImageDisque: TSaveDialog
+  object SaveDialogDiskImage: TSaveDialog
     DefaultExt = 'ST'
     FileName = 'Disk_.ST'
     Filter = 'ST disk image|*.ST'

@@ -20,10 +20,10 @@
 #include <math.h>
 
 
-	#define CP_NOMBRE_ESSAIS_DE_LECTURES_DE_SECTEURS (60)
+	#define CP_NUMBER_OF_SECTOR_READ_ATTEMPTS (60)
 
-	#define CLDIS_Duree_octet_brut_en_microsecondes (32) // 200000 micros./6250 octets par piste.
-	#define CLDIS_Nb_minimal_octets_entre_secteurs (54) // normal: 102. 54, c'est pour les formatages en 11 secteurs/piste, à lire en 2 tours !
+	#define CLDIS_Raw_byte_duration_in_microseconds (32) // 200000 microsec./6250 bytes per track.
+	#define CLDIS_Minimum_bytes_number_between_sectors (54) // normal: 102. 54, this is for formatting in 11 sectors/track, to be read in 2 rounds !
 
 
 
@@ -57,17 +57,17 @@ double log2(double x)
 
 //---------------------------------------------------------------------------
 
-TTrack::TTrack(int Numero_de_piste_base_0, int Numero_de_face_base_0)
+TTrack::TTrack(int Track_number_0based, int Side_number_0based)
 {
-	Piste_base0=Numero_de_piste_base_0;
-	Face_base0=Numero_de_face_base_0;
+	Track_0based=Track_number_0based;
+	Side_0based=Side_number_0based;
 
-	memset(&contenu_secteurs,0,sizeof(contenu_secteurs));
+	memset(&Sectors_content,0,sizeof(Sectors_content));
 
-	memset(&Tableau_des_Secteurs_en_base_0,0,sizeof(Tableau_des_Secteurs_en_base_0));
+	memset(&Sectors_array_0based,0,sizeof(Sectors_array_0based));
 
 
-	sauvegarde_infos_pistes_brutes_deja_effectuee=false;
+	raw_track_info_saving_already_done=false;
 }
 
 //---------------------------------------------------------------------------
@@ -75,203 +75,203 @@ TTrack::~TTrack()
 {
 }
 //---------------------------------------------------------------------------
-int	TTrack::get_Numero_de_piste_base_0(void)
+int	TTrack::get_track_number_0based(void)
 {
-	return Piste_base0;
+	return Track_0based;
 }
 //---------------------------------------------------------------------------
-int	TTrack::get_Numero_de_face_base_0(void)
+int	TTrack::get_side_number_0based(void)
 {
-	return Face_base0;
+	return Side_0based;
 }
 //---------------------------------------------------------------------------
-bool	TTrack::CP_identifie_secteurs_bruts( // Renvoie si "secteur_base0" a été trouvé.
-	class TFloppyDisk* classe_disquette, // classe appelante.
-	unsigned piste, // tous les arguments sont en base 0.
-	unsigned face,
-	unsigned secteur_base0,
-	TStrings* LOG_strings,	
-	Infos_Secteurs_Piste_brute_16ko &Resultat_Piste_Brute,
-	BYTE* p_memoire_secteur) // Là où on copiera AUSSI les données du secteur recherché.
+bool	TTrack::CP_identify_raw_sectors( // Returns if "sector_0based" was found.
+	class TFloppyDisk* floppy_disk, // Calling class.
+	unsigned track, // All arguments are 0-based.
+	unsigned side,
+	unsigned sector_0based,
+	TStrings* LOG_strings,
+	SSectorInfoInRawTrack16kb &Raw_Track_Result,
+	BYTE* pSectorMemory) // Where we'll ALSO copy the data from the searched sector.
 
 {
-	bool valeur_renvoi=false;
+	bool return_value=false;
 
-	// Ici, j'appelle "piste brute" les octets lus en RAW,
-	// et "Piste Timer" les données temporelles sur la piste.
+	// Here, I call "raw track" the bytes read in RAW,
+	// and "Track Timer" the time data on the track.
 
-	// 3) Cherche où se trouvent les secteurs sur la piste Timer.
-	infopiste* piste_timer=CP_Analyse_Temps_Secteurs(classe_disquette,piste,face);
-	if (piste_timer->OperationReussie)
+	// 3) Find out where the sectors are on the timer_track.
+	STrackInfo* timer_track=CP_Analyse_Sectors_Time(floppy_disk,track,side);
+	if (timer_track->OperationSuccess)
 	{
 
-		// a) On détermine le 1er secteur commun aux 2 pistes (brute et timer).
-		bool sec_commun_trouve=false;
-		unsigned isect_brute,isect_timer;
+		// a) We determine the 1st sector common to the 2 tracks (raw and timer).
+		bool common_sector_found=false;
+		unsigned i_raw_sector,i_timer_sector;
 		{
-			for (isect_brute=0;isect_brute<Resultat_Piste_Brute.Nb_Secteurs_trouves ;isect_brute++ )
+			for (i_raw_sector=0;i_raw_sector<Raw_Track_Result.Nb_Sectors_found ;i_raw_sector++ )
 			{
-				if (Resultat_Piste_Brute.Infos_Secteur[isect_brute].Secteur_identifie)
+				if (Raw_Track_Result.Sector_Infos[i_raw_sector].Sector_Identified)
 				{
-					for (isect_timer=0;isect_timer<(unsigned)piste_timer->fdrawcmd_Timed_Scan_Result->count ;isect_timer++ )
+					for (i_timer_sector=0;i_timer_sector<(unsigned)timer_track->fdrawcmd_Timed_Scan_Result->count ;i_timer_sector++ )
 					{
-						if (Resultat_Piste_Brute.Infos_Secteur[isect_brute].ID_Secteur_base1
-						== (unsigned)piste_timer->fdrawcmd_Timed_Scan_Result->Headers[isect_timer].sector)
+						if (Raw_Track_Result.Sector_Infos[i_raw_sector].Sector_ID_1based
+						== (unsigned)timer_track->fdrawcmd_Timed_Scan_Result->Headers[i_timer_sector].sector)
 						{
-							sec_commun_trouve=true;
+							common_sector_found=true;
 							break;
 						}
 					}
-					if (sec_commun_trouve)
+					if (common_sector_found)
 						break;
 				}
 			}
 		}
-		if (sec_commun_trouve)
+		if (common_sector_found)
 		{
 
-			// b)	On calcule la longueur réelle de la piste brute, en octets.
-			//    Car la longueur idéale est de 6250, mais sur mon lecteur elle fait 6285.
-			unsigned	taille_piste_brute=6250; // valeur par défaut.
-			unsigned	duree_piste_brute=6250*CLDIS_Duree_octet_brut_en_microsecondes; // valeur par défaut.
+			// b)	Calculate the actual length of the raw track, in bytes.
+			//    Because the ideal length is 6250, but on my floppy drive it is 6285.
+			unsigned	raw_track_size=6250; // default value.
+			unsigned	raw_track_duration=6250*CLDIS_Raw_byte_duration_in_microseconds; // default value.
 			{
-				// Pour ça, il faut trouver 2 fois le même secteur dans la piste brute.
-				bool couple_trouve=false;
-				for (unsigned i1=0;i1<Resultat_Piste_Brute.Nb_Secteurs_trouves ;i1++ )
+				// For that, you have to find the same sector twice in the raw track.
+				bool couple_found=false;
+				for (unsigned i1=0;i1<Raw_Track_Result.Nb_Sectors_found ;i1++ )
 				{
-					if (Resultat_Piste_Brute.Infos_Secteur[i1].Secteur_identifie)
+					if (Raw_Track_Result.Sector_Infos[i1].Sector_Identified)
 					{
-						for (unsigned i2=i1+1;i2<Resultat_Piste_Brute.Nb_Secteurs_trouves ;i2++ )
+						for (unsigned i2=i1+1;i2<Raw_Track_Result.Nb_Sectors_found ;i2++ )
 						{
-							if (Resultat_Piste_Brute.Infos_Secteur[i2].Secteur_identifie)
+							if (Raw_Track_Result.Sector_Infos[i2].Sector_Identified)
 							{
-								if (Resultat_Piste_Brute.Infos_Secteur[i1].ID_Secteur_base1
-								== Resultat_Piste_Brute.Infos_Secteur[i2].ID_Secteur_base1)
+								if (Raw_Track_Result.Sector_Infos[i1].Sector_ID_1based
+								== Raw_Track_Result.Sector_Infos[i2].Sector_ID_1based)
 								{
-									couple_trouve=true;
+									couple_found=true;
 									int diff=
-										Resultat_Piste_Brute.Infos_Secteur[i2].Index_Dans_Contenu_Piste_Codee
-										- Resultat_Piste_Brute.Infos_Secteur[i1].Index_Dans_Contenu_Piste_Codee;
-									const int tmaximaxi=(6250*6)/5;// tolérance: 20%.
+										Raw_Track_Result.Sector_Infos[i2].Index_In_Encoded_Track_Content
+										- Raw_Track_Result.Sector_Infos[i1].Index_In_Encoded_Track_Content;
+									const int tmaximaxi=(6250*6)/5;// tolerance: 20%.
 									if (diff>tmaximaxi) // 6250+20%
 										if (diff>(tmaximaxi*2)) // 6250*2+20%
-											diff /= 3; // on a fait trois tours de piste.
+											diff /= 3; // we did three turns.
 										else
-											diff /= 2; // on a fait deux tours de piste.*/
-									if ((diff<6125) || (diff > 6375)) // garde-fou (le moteur ne tourne peut-être pas à la bonne vitesse).
+											diff /= 2; // we did two turns.
+									if ((diff<6125) || (diff > 6375)) // guardrail (motor may not be running at the correct speed).
 									{
 										#ifdef _DEBUG
 											DebugBreak();
 										#endif
 										diff=6250;
 									}
-									taille_piste_brute=diff;
-									duree_piste_brute=diff*CLDIS_Duree_octet_brut_en_microsecondes;
+									raw_track_size=diff;
+									raw_track_duration=diff*CLDIS_Raw_byte_duration_in_microseconds;
 									break;
 								}
 							}
-						} // fin for i2
-						if (couple_trouve)
+						} // end for i2
+						if (couple_found)
 							break;
 					}
-				} // fin for i1
-			}  // fin bloc
+				} // end for i1
+			}  // end block
 
 			// - - - - - -
 
-			// c) On calcule à quel instant a commencé la lecture dans la piste brute.
-			//		Car elle est lue à partir des 1eres données de syncro trouvées,
-			//		et non au début physique de la piste (contrairement au timer).				<<==  TRÈS IMPORTANT À NOTER !!!
-			int temps_depart_piste_brute;
+			// c) We calculate when reading started in the raw track.
+			//		Because it is read from the first syncro data found,
+			//		and not at the physical start of the track (unlike the timer).				<<==  VERY IMPORTANT TO NOTE !!!
+			int raw_track_start_time;
 			{
-				temps_depart_piste_brute=
-					piste_timer->fdrawcmd_Timed_Scan_Result->Headers[isect_timer].reltime
-					- Resultat_Piste_Brute.Infos_Secteur[isect_brute].Index_Dans_Contenu_Piste_Codee
-						* CLDIS_Duree_octet_brut_en_microsecondes;
+				raw_track_start_time=
+					timer_track->fdrawcmd_Timed_Scan_Result->Headers[i_timer_sector].reltime
+					- Raw_Track_Result.Sector_Infos[i_raw_sector].Index_In_Encoded_Track_Content
+						* CLDIS_Raw_byte_duration_in_microseconds;
 			}
-			if (temps_depart_piste_brute < 0)
-				temps_depart_piste_brute =
-					(temps_depart_piste_brute + 3*duree_piste_brute) % duree_piste_brute;
+			if (raw_track_start_time < 0)
+				raw_track_start_time =
+					(raw_track_start_time + 3*raw_track_duration) % raw_track_duration;
 
 
 
 			// -----------------------------------
 
-			std::vector<struct bloc>	tab_blocs;
-			tab_blocs.reserve(CP_NB_MAXI_SECTEURS_PAR_PISTE_BRUTE);
+			std::vector<struct SBlock>	blocks_array;
+			blocks_array.reserve(CP_NB_MAX_SECTORS_PER_RAW_TRACK);
 
-			Init_et_complete_tableau_blocs_zones(classe_disquette,&tab_blocs,piste_timer,LOG_strings,duree_piste_brute);
+			Init_and_complete_area_blocks_array(floppy_disk,&blocks_array,timer_track,LOG_strings,raw_track_duration);
 
 			// -----------------------------------
 
 
 
-			// à partir d'ici, on doit utiliser "tab_blocs", au lieu
-			// de "piste_timer" (en gros, contient les mêmes informations, mais avec les secteurs découverts en plus).
+			// From here, we should use "blocks_array", instead of
+			// "timer_track" (basically contains the same information, but with the discovered sectors added).
 
 
-			// d) On construit un tableau des secteurs trouvés, en rassemblant
-			//		toutes les informations disponibles dans les 2 pistes.
-			// Pour ça, on découpe le temps en zones de 4096 micro-secondes (soit 128 octets).
-			unsigned zones_secteur_base1[ 8192/128 ];
-			memset(zones_secteur_base1,0,sizeof(zones_secteur_base1));
+			// d) We build a table of the sectors found, by gathering
+			//      all the information available in the 2 tracks.
+			// For that, the time is divided into zones of 4096 micro-seconds (i.e. 128 bytes).
+			unsigned sector_areas_1based[ 8192/128 ];
+			memset(sector_areas_1based,0,sizeof(sector_areas_1based));
 
-			if (tab_blocs.size() > 0)
+			if (blocks_array.size() > 0)
 			{
-				const unsigned duree_une_zone_en_microsecondes=
-					128*CLDIS_Duree_octet_brut_en_microsecondes;
-				const int duree_secteur=
-					(128<<tab_blocs[0].taille_secteur_en_octets_code_bits)
-					* CLDIS_Duree_octet_brut_en_microsecondes;
+				const unsigned one_area_duration_in_microseconds=
+					128*CLDIS_Raw_byte_duration_in_microseconds;
+				const int sector_duration=
+					(128<<blocks_array[0].sector_size_in_bytes_bit_code)
+					* CLDIS_Raw_byte_duration_in_microseconds;
 
-				// d1) On utilise la piste temporelle (prioritaire), avec les secteurs complétés par calcul.
-				for (isect_timer=0;isect_timer<
-						(unsigned)tab_blocs.size(); //piste_timer_A_REMPLACER->fdrawcmd_Timed_Scan_Result->count ;
-						isect_timer++ )
+				// d1) The time track (priority) is used, with the sectors completed by calculation.
+				for (i_timer_sector=0;i_timer_sector<
+						(unsigned)blocks_array.size(); //timer_track_TO_BE_REPLACED->fdrawcmd_Timed_Scan_Result->count ;
+						i_timer_sector++ )
 				{
-					const unsigned nsect_base1=
-						tab_blocs[isect_timer].numero_secteur_base1_en_2eme ;
-					if (nsect_base1 != 0)
+					const unsigned nsect_1based=
+						blocks_array[i_timer_sector].sector_number_1based_in_2nd ;
+					if (nsect_1based != 0)
 					{
-						const unsigned instant_depart=
-							tab_blocs[isect_timer].instant_depart + tab_blocs[isect_timer].duree_espace_libre_en_1er;
-						const unsigned instant_fin= instant_depart
-							+ duree_secteur;
+						const unsigned start_time=
+							blocks_array[i_timer_sector].start_time + blocks_array[i_timer_sector].free_space_duration_in_1st;
+						const unsigned end_time= start_time
+							+ sector_duration;
 
 						for (
-							unsigned izone=instant_depart/duree_une_zone_en_microsecondes;
-							izone<instant_fin/duree_une_zone_en_microsecondes ;
-							izone++ )
+							unsigned area_i=start_time/one_area_duration_in_microseconds;
+							area_i<end_time/one_area_duration_in_microseconds ;
+							area_i++ )
 						{
-							zones_secteur_base1[izone]=nsect_base1;
+							sector_areas_1based[area_i]=nsect_1based;
 						}
 					}
-				} // next isect_timer
+				} // next i_timer_sector
 
-				// d2) On donne le numéro de secteur a ceux qui manquent d'ID dans la piste brute.
+				// d2) We give the sector number to those who lack an ID in the raw track.
 				{
-					for (unsigned i3=0;i3<Resultat_Piste_Brute.Nb_Secteurs_trouves ;i3++ )
+					for (unsigned i3=0;i3<Raw_Track_Result.Nb_Sectors_found ;i3++ )
 					{
-						if ( ! Resultat_Piste_Brute.Infos_Secteur[i3].Secteur_identifie)
+						if ( ! Raw_Track_Result.Sector_Infos[i3].Sector_Identified)
 						{
-							const unsigned octet_debut=
-								Resultat_Piste_Brute.Infos_Secteur[i3].Index_Dans_Contenu_Piste_Codee
-								% taille_piste_brute;
-							// je compte pour un secteur de 128 octets car on ne sait pas sa taille.
-							const unsigned temps_milieu_secteur=
-								((octet_debut+/*128*/classe_disquette->NbOctetsParSecteur/2) * CLDIS_Duree_octet_brut_en_microsecondes
-								+ temps_depart_piste_brute)
-								% duree_piste_brute;
-							unsigned numbase1=
-								zones_secteur_base1[temps_milieu_secteur/duree_une_zone_en_microsecondes];
-							if (numbase1 != 0) // si on a trouvé le numéro du secteur (en base 1).
+							const unsigned start_byte=
+								Raw_Track_Result.Sector_Infos[i3].Index_In_Encoded_Track_Content
+								% raw_track_size;
+							// I count for a sector of 128 bytes because we do not know its size.
+							const unsigned mid_sector_time=
+								((start_byte+/*128*/floppy_disk->NbBytesPerSector/2) * CLDIS_Raw_byte_duration_in_microseconds
+								+ raw_track_start_time)
+								% raw_track_duration;
+							unsigned num1based=
+								sector_areas_1based[mid_sector_time/one_area_duration_in_microseconds];
+							if (num1based != 0) // If we found the sector number (1-based).
 							{
-								Resultat_Piste_Brute.Infos_Secteur[i3].ID_Secteur_base1=numbase1;
-								Resultat_Piste_Brute.Infos_Secteur[i3].Secteur_identifie=true;
-								Resultat_Piste_Brute.Infos_Secteur[i3].ID_Piste=this->Piste_base0;
-								Resultat_Piste_Brute.Infos_Secteur[i3].ID_Face=this->Face_base0;
-								Resultat_Piste_Brute.Infos_Secteur[i3].ID_Taille=
-									log2(classe_disquette->NbOctetsParSecteur/128.0);
+								Raw_Track_Result.Sector_Infos[i3].Sector_ID_1based=num1based;
+								Raw_Track_Result.Sector_Infos[i3].Sector_Identified=true;
+								Raw_Track_Result.Sector_Infos[i3].Track_ID=this->Track_0based;
+								Raw_Track_Result.Sector_Infos[i3].Side_ID=this->Side_0based;
+								Raw_Track_Result.Sector_Infos[i3].Size_ID=
+									log2(floppy_disk->NbBytesPerSector/128.0);
 							}
 							else
 							{
@@ -281,42 +281,42 @@ bool	TTrack::CP_identifie_secteurs_bruts( // Renvoie si "secteur_base0" a été tr
 								LOG_strings->Add("Warning: sector not identified. There is a default in the sector scheme analysis. Please contact the author.");
 							}
 
-							// ENFIN on est au point où on peut utiliser des secteurs anonymes.
+							// FINALLY we're at the point where we can use anonymous sectors.
 							// ----------------------------------------------------------------
 
-							if (Resultat_Piste_Brute.Infos_Secteur[i3].Secteur_identifie)
+							if (Raw_Track_Result.Sector_Infos[i3].Sector_Identified)
 							{
-								bool cestlesecteurrecherche=
-									Resultat_Piste_Brute.Infos_Secteur[i3].ID_Secteur_base1 == (secteur_base0+1);
-								// Ici, je devrais aussi tester les ID de piste,face et taille.
-								// Mais ça risque de gêner la lecture des disquettes spéciales.
+								bool is_this_the_searched_sector=
+									Raw_Track_Result.Sector_Infos[i3].Sector_ID_1based == (sector_0based+1);
+								// Here I should also test the track ID, side and size.
+								// But it may interfere with the reading of special diskettes.
 
-								s_Secteur* sectparbrut=
-									&Tableau_des_Secteurs_en_base_0[
-										Resultat_Piste_Brute.Infos_Secteur[i3].ID_Secteur_base1 -1 ];
+								SSector* sector_from_raw=
+									&Sectors_array_0based[
+										Raw_Track_Result.Sector_Infos[i3].Sector_ID_1based -1 ];
 
-								if ( ! sectparbrut->Lu_correctement)
+								if ( ! sector_from_raw->Read_correctly)
 								{
 									BYTE* mem=
-										cestlesecteurrecherche ?
-											p_memoire_secteur
-											: reserve_memoire_secteur(
-													Resultat_Piste_Brute.Infos_Secteur[i3].ID_Secteur_base1 -1,
-													classe_disquette->NbOctetsParSecteur);
+										is_this_the_searched_sector ?
+											pSectorMemory
+											: reserve_sector_memory(
+													Raw_Track_Result.Sector_Infos[i3].Sector_ID_1based -1,
+													floppy_disk->NbBytesPerSector);
 
 									if (mem != NULL)
 									{
-										memcpy(mem,&Resultat_Piste_Brute.Contenu_Piste_decodee[
-											Resultat_Piste_Brute.Infos_Secteur[i3].Index_Dans_Contenu_Piste_Decodee],
-											classe_disquette->NbOctetsParSecteur);
-										sectparbrut->Lu_correctement=true;
-										sectparbrut->Taille_en_octets=classe_disquette->NbOctetsParSecteur;
-										sectparbrut->Lecture_par_Piste_Brute_reussie=true;
-										sectparbrut->Nombre_essais_lecture ++;
-										if (cestlesecteurrecherche)
+										memcpy(mem,&Raw_Track_Result.Decoded_Track_Content[
+											Raw_Track_Result.Sector_Infos[i3].Index_In_Decoded_Track_Content],
+											floppy_disk->NbBytesPerSector);
+										sector_from_raw->Read_correctly=true;
+										sector_from_raw->Byte_size=floppy_disk->NbBytesPerSector;
+										sector_from_raw->Reading_of_Raw_Track_success=true;
+										sector_from_raw->Reading_tried_number++;
+										if (is_this_the_searched_sector)
 										{
-											valeur_renvoi=true;
-											//break; // "break" si on se limite à notre secteur actuellement recherché (debug).
+											return_value=true;
+											//break; // "break" if we limit ourselves to our currently searched area (debug).
 										}
 									}
 								}
@@ -326,63 +326,63 @@ bool	TTrack::CP_identifie_secteurs_bruts( // Renvoie si "secteur_base0" a été tr
 					}
 				}
 			}
-			tab_blocs.clear();
+			blocks_array.clear();
 		}
-	}  // endif piste_timer->OperationReussie
-	return valeur_renvoi;
+	}  // endif timer_track->OperationSuccess
+	return return_value;
 }
 
 //---------------------------------------------------------------------------
 //---------------------------------------------------------------------------
-bool	TTrack::CP_LitSecteur(
-	TFloppyDisk* classe_disquette, // classe appelante.
-	unsigned piste, // tous les arguments sont en base 0.
-	unsigned face,
-	unsigned secteur_base0,
-	DWORD temps_alloue_ms,
-	s_Secteur** p_p_s_secteur, // Ecrit un pointeur sur une classe dans la mémoire fournie.
+bool	TTrack::CP_ReadSector(
+	TFloppyDisk* floppy_disk, // Calling class.
+	unsigned track, // All arguments are 0-based.
+	unsigned side,
+	unsigned sector_0based,
+	DWORD allowed_time_ms,
+	SSector** p_p_s_sector, // Writes a pointer to a class in the provided memory.
 	TStrings* LOG_strings,
-	volatile bool*	p_annulateur, // si cette variable devient vraie, on annule l'opération en cours.
-	bool sauve_infos_pistes_brutes)
+	volatile bool*	p_canceller, // If this variable becomes true, the current operation is cancelled.
+	bool save_raw_track_infos)
 {
-	const DWORD limite_temps=GetTickCount()+temps_alloue_ms;
+	const DWORD time_limit=GetTickCount()+allowed_time_ms;
 
-	s_Secteur* secteur=&Tableau_des_Secteurs_en_base_0[secteur_base0];
+	SSector* sector=&Sectors_array_0based[sector_0based];
 
-	*p_p_s_secteur=secteur;
+	*p_p_s_sector=sector;
 
-	if (secteur->Lu_correctement) // Cas où ce secteur a déjà été lu.
+	if (sector->Read_correctly) // Case where this sector has already been read.
 		return true;
 
-	if (*p_annulateur)
+	if (*p_canceller)
 		return false;
 
 
 
-	const bool determine_architecture= classe_disquette->ArchitectureDisqueConnue;
-	BYTE*	p_memoire_secteur=
+	const bool determine_architecture= floppy_disk->KnownDiskArchitecture;
+	BYTE*	pSectorMemory=
 		determine_architecture ?
-		reserve_memoire_secteur(secteur_base0,classe_disquette->NbOctetsParSecteur)
-		: (BYTE*) &classe_disquette->Secteur_Boot_Atari_ST;//_memoire_secteur : // si on ne connait pas l'archi, on écrit dans cette mémoire.
+		reserve_sector_memory(sector_0based,floppy_disk->NbBytesPerSector)
+		: (BYTE*) &floppy_disk->Atari_ST_Boot_Sector;//_sector_memory : // if we don't know the archi, we write in this memory.
 
-	secteur->pContenu=p_memoire_secteur; // Même pour le boot-secteur, qui est assez spécial et limité à 512 octets.
+	sector->pContent=pSectorMemory; // Even for the boot-sector, which is quite special and limited to 512 bytes.
 
 	bool OK=false;
 
 	const unsigned startinglogicalsector =
-		( (!classe_disquette->ArchitectureDisqueConnue) || ((piste==0) && (face==0) && (secteur_base0==0))) ?
+		( (!floppy_disk->KnownDiskArchitecture) || ((track==0) && (side==0) && (sector_0based==0))) ?
 			0 :
-			(piste*classe_disquette->NbSecteursParPiste*classe_disquette->NbFaces + face*classe_disquette->NbSecteursParPiste)
-			+ secteur_base0;
+			(track*floppy_disk->NbSectorsPerTrack*floppy_disk->NbSides + side*floppy_disk->NbSectorsPerTrack)
+			+ sector_0based;
 
 	const numberofsectors = 1;
 
-	if (classe_disquette->Win9X)
+	if (floppy_disk->Win9X)
 	{
 		// code for win 95/98
 		ControlBlock.StartingSector = (DWORD)startinglogicalsector;
 		ControlBlock.NumberOfSectors = (DWORD)numberofsectors ;
-		ControlBlock.pBuffer = (DWORD)p_memoire_secteur;
+		ControlBlock.pBuffer = (DWORD)pSectorMemory;
 
 		//-----------------------------------------------------------
 		// SI contains read/write mode flags
@@ -400,14 +400,14 @@ bool	TTrack::CP_LitSecteur(
 		reg.reg_ESI = 0x00 ;
 		reg.reg_ECX = -1 ;
 		reg.reg_EBX = (DWORD)(&ControlBlock);
-		reg.reg_EDX = classe_disquette->LecteurSelectionne+1;
+		reg.reg_EDX = floppy_disk->SelectedFloppyDrive+1;
 		reg.reg_EAX = 0x7305 ;
 
-		//  6 == VWIN32_DIOC_DOS_DRIVEINFO
+		//  6 == VWIN32_DIOC_DOS_DRIVEINFO // This is Interrupt 21h Function 730X commands.
 		BOOL  fResult ;
 		DWORD cb ;
 
-		fResult = DeviceIoControl ( classe_disquette->hDevice,
+		fResult = DeviceIoControl ( floppy_disk->hDevice,
 			6,
 			&(reg),
 			sizeof (reg),
@@ -421,294 +421,294 @@ bool	TTrack::CP_LitSecteur(
 	else
 	{       // Code Windows NT
 
-		if ( ! classe_disquette->fdrawcmd_sys_installe)
+		if ( ! floppy_disk->fdrawcmd_sys_installed)
 		{
 			// Setting the pointer to point to the start of the sector we want to read ..
-			SetFilePointer (classe_disquette->hDevice, (startinglogicalsector*classe_disquette->NbOctetsParSecteur), NULL, FILE_BEGIN);
+			SetFilePointer (floppy_disk->hDevice, (startinglogicalsector*floppy_disk->NbBytesPerSector), NULL, FILE_BEGIN);
 
 			DWORD bytesread=0;
-			OK=ReadFile (classe_disquette->hDevice, p_memoire_secteur, classe_disquette->NbOctetsParSecteur*numberofsectors, &bytesread, NULL);
-			secteur->Lecture_normale_par_controleur_essayee=true;
+			OK=ReadFile (floppy_disk->hDevice, pSectorMemory, floppy_disk->NbBytesPerSector*numberofsectors, &bytesread, NULL);
+			sector->Normal_reading_by_controller_tried=true;
 			if (OK)
 			{
-				secteur->Lu_correctement=true;
-				secteur->Nombre_essais_lecture++;
-				secteur->Taille_en_octets = bytesread;
-				secteur->Lecture_normale_par_controleur_essayee=true;
-				secteur->Lecture_normale_par_controleur_reussie=true;
+				sector->Read_correctly=true;
+				sector->Reading_tried_number++;
+				sector->Byte_size = bytesread;
+				sector->Normal_reading_by_controller_tried=true;
+				sector->Normal_reading_by_controller_success=true;
 			}
 		}
 		else
 		{
-			// Avec ce pilote (fdrawcmd.sys), on est forcé d'utiliser une autre méthode.
+			// With this driver (fdrawcmd.sys), we are forced to use another method.
 			DWORD dwRet;
 			FD_READ_WRITE_PARAMS rwp;
 
 			// details of sector to read
 			rwp.flags = FD_OPTION_MFM;
-			rwp.phead = face;
-			rwp.cyl = piste;
-			rwp.head = face;
-			rwp.sector = secteur_base0+1; // en base 1.
+			rwp.phead = side;
+			rwp.cyl = track;
+			rwp.head = side;
+			rwp.sector = sector_0based+1; // 1-based.
 			rwp.size = 2;
-			rwp.eot = secteur_base0+1+1; // secteur 'suivant' le dernier à lire, en base 1.
+			rwp.eot = sector_0based+1+1; // Sector 'next' last to read, 1-based.
 			rwp.gap = 0x0a;
 			rwp.datalen = 0xff;
 
-			OK = CP_selectionne_piste_et_face(classe_disquette,piste,face);
+			OK = CP_select_track_and_side(floppy_disk,track,side);
 			if (OK)
 			{
-				classe_disquette->infos_en_direct.Piste_Selectionnee=piste; // La tête est actuellement placée ici.
-				classe_disquette->infos_en_direct.Face_Selectionnee=face; // Cette face est actuellement selectionnée.
+				floppy_disk->direct_infos.Selected_Track=track; // The head is currently placed here.
+				floppy_disk->direct_infos.Selected_Side=side; // This side is currently selected.
 
-				bool secteurlu=false;
-				int nb_essais_ici=0;
+				bool is_sector_read=false;
+				int nb_tries_here=0;
 
 
 				// -------------------------------------------------------------
-				while((!secteurlu)
-					&& (((int)limite_temps-GetTickCount())>0)
-					&& ( ! *p_annulateur)
-					&& ( nb_essais_ici < CP_NOMBRE_ESSAIS_DE_LECTURES_DE_SECTEURS) )
+				while((!is_sector_read)
+					&& (((int)time_limit-GetTickCount())>0)
+					&& ( ! *p_canceller)
+					&& ( nb_tries_here < CP_NUMBER_OF_SECTOR_READ_ATTEMPTS) )
 				{
-					if ((nb_essais_ici % 16)==15) // Toutes les 16 boucles, on recalibre la tête.. à  tout hasard.
+					if ((nb_tries_here % 16)==15) // Every 16 loops, we recalibrate the head... just in case.
 					{
-						DeviceIoControl(classe_disquette->hDevice, IOCTL_FDCMD_RECALIBRATE, NULL, 0, NULL, 0, &dwRet, NULL);
-						// seek to cyl "piste"
-						CP_selectionne_piste_et_face(classe_disquette,piste,face);
+						DeviceIoControl(floppy_disk->hDevice, IOCTL_FDCMD_RECALIBRATE, NULL, 0, NULL, 0, &dwRet, NULL);
+						// seek to cyl "track"
+						CP_select_track_and_side(floppy_disk,track,side);
 					}
 
 
 					// read sector
-					secteurlu=DeviceIoControl(classe_disquette->hDevice, IOCTL_FDCMD_READ_DATA, &rwp,
-						sizeof(rwp),p_memoire_secteur, classe_disquette->NbOctetsParSecteur, &dwRet, NULL);
+					is_sector_read=DeviceIoControl(floppy_disk->hDevice, IOCTL_FDCMD_READ_DATA, &rwp,
+						sizeof(rwp),pSectorMemory, floppy_disk->NbBytesPerSector, &dwRet, NULL);
 
-					secteur->Nombre_essais_lecture ++;
-					secteur->Lecture_normale_par_controleur_essayee=true; // TRES IMPORTANT: on met 'vrai', que la lecture ait réussi ou pas.
-					secteur->Lecture_normale_par_controleur_reussie=secteurlu;
-					secteur->Lu_correctement |= secteurlu;
+					sector->Reading_tried_number++;
+					sector->Normal_reading_by_controller_tried=true; // VERY IMPORTANT: we set 'true', whether the reading was successful or not.
+					sector->Normal_reading_by_controller_success=is_sector_read;
+					sector->Read_correctly |= is_sector_read;
 
-					if ( ! secteurlu )
+					if ( ! is_sector_read )
 					{
-						// Ici on demande une technique plus approfondie pour lire ce secteur.
+						// Here we ask for a more in-depth technique to read this sector.
 
-						struct Infos_Secteurs_Piste_brute_16ko Resultat_Piste_Brute;
+						struct SSectorInfoInRawTrack16kb Raw_Track_Result;
 
-						bool recup_ok=CP_analyse_piste_brute( // seulement avec "fdrawcmd.sys".
-							false,//bool Purement_informatif,// Ne modifie pas les données de secteur.
-							//out_Infos_detaillees,//TStringList* out_Infos_detaillees,
-							classe_disquette,//TFloppyDisk* classe_disquette, // classe appelante.
-							limite_temps-GetTickCount(),//DWORD temps_alloue_ms,
-							p_p_s_secteur,//s_Secteur** p_p_s_secteur, // Ecrit un pointeur sur une classe dans la mémoire fournie.
+						bool recover_ok=CP_analyse_raw_track( // Only with "fdrawcmd.sys".
+							false,//bool Purely_informative,// Does not modify sector data.
+							//out_Detailed_infos,//TStringList* out_Detailed_infos,
+							floppy_disk,//TFloppyDisk* floppy_disk, // Calling class.
+							time_limit-GetTickCount(),//DWORD allowed_time_ms,
+							p_p_s_sector,//SSector** p_p_s_sector, // Writes a pointer to a class in the provided memory.
 							LOG_strings,//TStrings* LOG_strings,
-							p_annulateur,//volatile bool*	p_annulateur, // si cette variable devient vraie, on annule l'opération en cours.
-							sauve_infos_pistes_brutes,//bool sauve_infos_pistes_brutes);
-							&Resultat_Piste_Brute);
+							p_canceller,//volatile bool*	p_canceller, // If this variable becomes true, the current operation is cancelled.
+							save_raw_track_infos,//bool save_raw_track_infos);
+							&Raw_Track_Result);
 
 
 
-						// Cherche si on trouve notre secteur dans la piste brute.
-						if (recup_ok)
+						// See if we can find our sector in the raw track.
+						if (recover_ok)
 						{
-							// Cherche si notre secteur a été bien lu.
-							for (unsigned i=0; i<Resultat_Piste_Brute.Nb_Secteurs_trouves;i++ )
+							// Find out if our sector has been well read.
+							for (unsigned i=0; i<Raw_Track_Result.Nb_Sectors_found;i++ )
 							{
-								if (Resultat_Piste_Brute.Infos_Secteur[i].Secteur_identifie)
+								if (Raw_Track_Result.Sector_Infos[i].Sector_Identified)
 								{
-									const bool cestlesecteurrecherche=
-										Resultat_Piste_Brute.Infos_Secteur[i].ID_Secteur_base1 == (secteur_base0+1);
-									// Ici, je devrais aussi tester les ID de piste,face et taille.
-									// Mais ça risque de gêner la lecture des disquettes spéciales.
+									const bool is_this_the_searched_sector=
+										Raw_Track_Result.Sector_Infos[i].Sector_ID_1based == (sector_0based+1);
+									// Here I should also test the track ID, side and size.
+									// But it may interfere with the reading of special diskettes.
 
-									s_Secteur* sectparbrut=
-										&Tableau_des_Secteurs_en_base_0[
-											Resultat_Piste_Brute.Infos_Secteur[i].ID_Secteur_base1 -1 ];
+									SSector* sector_from_raw=
+										&Sectors_array_0based[
+											Raw_Track_Result.Sector_Infos[i].Sector_ID_1based -1 ];
 
 
-									if (sectparbrut->Lu_correctement)
+									if (sector_from_raw->Read_correctly)
 									{
-										if (cestlesecteurrecherche)
-											secteurlu=true;
+										if (is_this_the_searched_sector)
+											is_sector_read=true;
 									}
 									else
 									{
 										BYTE* mem=
-											cestlesecteurrecherche ?
-												p_memoire_secteur
-												: reserve_memoire_secteur(
-														Resultat_Piste_Brute.Infos_Secteur[i].ID_Secteur_base1 -1,//unsigned secteur_base0,
-														classe_disquette->NbOctetsParSecteur);//unsigned nombre_octets);
+											is_this_the_searched_sector ?
+												pSectorMemory
+												: reserve_sector_memory(
+														Raw_Track_Result.Sector_Infos[i].Sector_ID_1based -1,//unsigned sector_0based,
+														floppy_disk->NbBytesPerSector);//unsigned bytes_number);
 
 										if (mem != NULL)
 										{
-											memcpy(mem,&Resultat_Piste_Brute.Contenu_Piste_decodee[
-												Resultat_Piste_Brute.Infos_Secteur[i].Index_Dans_Contenu_Piste_Decodee],
-												classe_disquette->NbOctetsParSecteur);
-											sectparbrut->Lu_correctement=true;
-											sectparbrut->Taille_en_octets=classe_disquette->NbOctetsParSecteur;
-											sectparbrut->Lecture_par_Piste_Brute_reussie=true;
-											sectparbrut->Nombre_essais_lecture ++;
-											if (cestlesecteurrecherche)
+											memcpy(mem,&Raw_Track_Result.Decoded_Track_Content[
+												Raw_Track_Result.Sector_Infos[i].Index_In_Decoded_Track_Content],
+												floppy_disk->NbBytesPerSector);
+											sector_from_raw->Read_correctly=true;
+											sector_from_raw->Byte_size=floppy_disk->NbBytesPerSector;
+											sector_from_raw->Reading_of_Raw_Track_success=true;
+											sector_from_raw->Reading_tried_number++;
+											if (is_this_the_searched_sector)
 											{
-												secteurlu=true;
-												//break; // "break" si on se limite à notre secteur actuellement recherché (debug).
+												is_sector_read=true;
+												//break; // "break" if we limit ourselves to our currently searched area (debug).
 											}
 										}
 									}
 								}
 							} // next i
-						} // endif (recup_ok)
+						} // endif (recover_ok)
 
-					} // endif ( ! secteurlu || (sauvetoujourspistebrut && (nb_essais_ici==0)))
-					nb_essais_ici++;
+					} // endif ( ! is_sector_read || (always_save_raw_track && (nb_tries_here==0)))
+					nb_tries_here++;
 				} // end while // --------------------------------------------------
 
-				OK &= secteurlu;
+				OK &= is_sector_read;
 
-				if (secteurlu && !secteur->Lu_correctement)
-					asm nop // ERREUR
+				if (is_sector_read && !sector->Read_correctly)
+					asm nop // ERROR
 
-				if (secteurlu && (!determine_architecture))
-				{		// On avait stocké le contenu dans une mémoire tempo, il faut la copier.
-					BYTE* p=reserve_memoire_secteur(secteur_base0,classe_disquette->NbOctetsParSecteur);
+				if (is_sector_read && (!determine_architecture))
+				{		// We had stored the content in a tempo memory, we have to copy it.
+					BYTE* p=reserve_sector_memory(sector_0based,floppy_disk->NbBytesPerSector);
 					OK &= (p != NULL);
 					if (p != NULL)
 					{
-						memcpy(p,p_memoire_secteur,classe_disquette->NbOctetsParSecteur);
-						secteur->pContenu=p;
+						memcpy(p,pSectorMemory,floppy_disk->NbBytesPerSector);
+						sector->pContent=p;
 					}
-				} // endif (secteurlu && (!determine_architecture))
-			} // endif DeviceIoControl(classe_disquette->hDevice, IOCTL_FDCMD_SEEK, &sp, sizeof(sp), NULL, 0, &dwRet, NULL);
-		} // endif ( ! classe_disquette->fdrawcmd_sys_installe)
-	} // endif (classe_disquette->Win9X)
+				} // endif (is_sector_read && (!determine_architecture))
+			} // endif DeviceIoControl(floppy_disk->hDevice, IOCTL_FDCMD_SEEK, &sp, sizeof(sp), NULL, 0, &dwRet, NULL);
+		} // endif ( ! floppy_disk->fdrawcmd_sys_installed)
+	} // endif (floppy_disk->Win9X)
 
 	return OK;
 }
 //---------------------------------------------------------------------------
-bool	TTrack::CP_selectionne_piste_et_face(
-	TFloppyDisk* classe_disquette, // classe appelante.
-	unsigned piste, // en base 0.
-	unsigned face) // en base 0.
+bool	TTrack::CP_select_track_and_side(
+	TFloppyDisk* floppy_disk, // Calling class.
+	unsigned track, // 0-based.
+	unsigned side) // 0-based.
 {
-	if (classe_disquette==NULL)
+	if (floppy_disk==NULL)
 		return false;
-	if ( ! classe_disquette->fdrawcmd_sys_installe)
+	if ( ! floppy_disk->fdrawcmd_sys_installed)
 		return false;
 
-	// Avec ce pilote (fdrawcmd.sys), on est forcé d'utiliser une autre méthode.
+	// With this driver (fdrawcmd.sys), we are forced to use another method.
 	DWORD dwRet;
 	FD_READ_WRITE_PARAMS rwp;
 	FD_SEEK_PARAMS sp;
 
 	// details of sector to read
 	rwp.flags = FD_OPTION_MFM;
-	rwp.phead = face;
-	rwp.cyl = piste;
-	rwp.head = face;
-	rwp.sector = 1; // en base 1.
+	rwp.phead = side;
+	rwp.cyl = track;
+	rwp.head = side;
+	rwp.sector = 1; // 1-based.
 	rwp.size = 2;
-	rwp.eot = 1+1; // secteur 'suivant' le dernier à lire, en base 1.
+	rwp.eot = 1+1; // Sector 'next' last to read, 1-based.
 	rwp.gap = 0x0a;
 	rwp.datalen = 0xff;
 
 	// details of seek location
-	sp.cyl = piste;
-	sp.head = face;
+	sp.cyl = track;
+	sp.head = side;
 
-	// seek to cyl "piste"
-	return DeviceIoControl(classe_disquette->hDevice, IOCTL_FDCMD_SEEK, &sp, sizeof(sp), NULL, 0, &dwRet, NULL);
+	// seek to cyl "track"
+	return DeviceIoControl(floppy_disk->hDevice, IOCTL_FDCMD_SEEK, &sp, sizeof(sp), NULL, 0, &dwRet, NULL);
 }
 //---------------------------------------------------------------------------
-bool	TTrack::CP_analyse_piste_brute(// on lit la piste brute.
-	bool Purement_informatif,// Ne modifie pas les données de secteur. Sinon, on en extrait les informations vers les secteurs.
-	//TStringList* out_Infos_detaillees,
-	TFloppyDisk* classe_disquette, // classe appelante.
-	DWORD temps_alloue_ms,
-	s_Secteur** p_p_s_secteur, // Ecrit un pointeur sur une classe dans la mémoire fournie.
+bool	TTrack::CP_analyse_raw_track(// The raw track is read.
+	bool Purely_informative,// Does not modify sector data. Otherwise, we extract the information to the sectors.
+	//TStringList* out_Detailed_infos,
+	TFloppyDisk* floppy_disk, // Calling class.
+	DWORD allowed_time_ms,
+	SSector** p_p_s_sector, // Writes a pointer to a class in the provided memory.
 	TStrings* LOG_strings,
-	volatile bool*	p_annulateur, // si cette variable devient vraie, on annule l'opération en cours.
-	bool sauve_infos_pistes_brutes, // Dans un fichier texte et un fichier binaire.
-	struct Infos_Secteurs_Piste_brute_16ko* Resultat_Piste_Brute)
+	volatile bool*	p_canceller, // If this variable becomes true, the current operation is cancelled.
+	bool save_raw_track_infos, // In a text file and a binary file.
+	struct SSectorInfoInRawTrack16kb* Raw_Track_Result)
 {
-	/*	Petite explication:
+	/*	Short explanation:
 
-	Il y deux raisons d'appeler cette fonction.
+	There are two reasons to call this function.
 
-	- Soit on ne parvient pas à lire un des secteurs, et on a besoin d'une meilleure
-	analyse. Dans ce cas, "Purement_informatif"="false", et on va renseigner
-	les informations des secteurs manquants.
+	- Either we can't read one of the sectors, and we need a better
+	analysis. In this case, "Purely_informative"="false", and we will investigate
+	missing sector information.
 
-	- Soit on veut lancer une analyse approfondie de la piste APRES la lecture normale
-	des secteurs, pour fournir des informations de débogage.
-	Dans ce cas, "Purement_informatif"="true", et on ne va garder les informations
-	sur les secteurs. Par contre, on va écrire un fichier d'information de la piste.
-	A noter, TRES IMPORTANT, que même dans ce dernier cas, il est possible que l'on
-	ait déjà appelé cette fonction avant (pour la même piste), à cause d'une difficulté
-	à lire un secteur.
+	- Either we want to launch an in-depth analysis of the track AFTER normal reading
+	sectors, to provide debugging information.
+	In this case, "Purely_informative"="true", and we won't keep the information
+	on the sectors. On the other hand, we will write an information file of the track.
+	Note, VERY IMPORTANT, that even in this last case, it is possible that we
+	has already called this function before (for the same track), because of a difficulty
+	to read a sector.
 	*/
 
 
-	if (*p_annulateur)
+	if (*p_canceller)
 		return false;
-	if ( ! classe_disquette->fdrawcmd_sys_installe)
+	if ( ! floppy_disk->fdrawcmd_sys_installed)
 		return false;
 
-	if (Resultat_Piste_Brute==NULL)
+	if (Raw_Track_Result==NULL)
 		return false;
-	memset(Resultat_Piste_Brute,0,sizeof(Infos_Secteurs_Piste_brute_16ko));
+	memset(Raw_Track_Result,0,sizeof(SSectorInfoInRawTrack16kb));
 
 	bool OK=false;
 
-	OK= CP_selectionne_piste_et_face(classe_disquette,Piste_base0,Face_base0);
+	OK= CP_select_track_and_side(floppy_disk,Track_0based,Side_0based);
 
 	if (!OK)
 		return false;
 
-	classe_disquette->infos_en_direct.Piste_Selectionnee=Piste_base0; // La tête est actuellement placée ici.
-	classe_disquette->infos_en_direct.Face_Selectionnee=Face_base0; // Cette face est actuellement selectionnée.
+	floppy_disk->direct_infos.Selected_Track=Track_0based; // The head is currently placed here.
+	floppy_disk->direct_infos.Selected_Side=Side_0based; // This side is currently selected.
 
-	int nb_essais_ici=0;
+	int nb_tries_here=0;
 
 
 	// -------------------------------------------------------------
 
-			bool recup_ok;
+			bool recover_ok;
 
-			// 1) lit la piste brute, pour y dénicher des secteurs.
-			recup_ok=LitSecteursPisteBrute(classe_disquette,Resultat_Piste_Brute);
-			if ( ! recup_ok)
+			// 1) Reads the raw track to find sectors on it.
+			recover_ok=ReadRawTrackSectors(floppy_disk,Raw_Track_Result);
+			if ( ! recover_ok)
 				return false;
 
 			{
-				// On va tâcher de situer aussi les secteurs pas encore trouvés.
+				// We will also try to locate the sectors not yet found.
 
-				// On regarde si on a besoin d'aller plus loin.
-				int nb_secteurs_bruts_sans_ID=0;
-				for (unsigned i=0; i<Resultat_Piste_Brute->Nb_Secteurs_trouves;i++ )
-					if ( ! Resultat_Piste_Brute->Infos_Secteur[i].Secteur_identifie)
-						nb_secteurs_bruts_sans_ID++;
+				// We see if we need to go further.
+				int nb_raw_sectors_without_ID=0;
+				for (unsigned i=0; i<Raw_Track_Result->Nb_Sectors_found;i++ )
+					if ( ! Raw_Track_Result->Sector_Infos[i].Sector_Identified)
+						nb_raw_sectors_without_ID++;
 
-				if (nb_secteurs_bruts_sans_ID > 0)
-					CP_identifie_secteurs_bruts( // **************************
-						classe_disquette,//class TFloppyDisk* classe_disquette, // classe appelante.
-						Piste_base0,//unsigned piste, // tous les arguments sont en base 0.
-						Face_base0,//unsigned face,
-						1000,// secteur_base0 AUCUNE IMPORTANCE ICI.
+				if (nb_raw_sectors_without_ID > 0)
+					CP_identify_raw_sectors( // **************************
+						floppy_disk,//class TFloppyDisk* floppy_disk, // Calling class.
+						Track_0based,//unsigned track, // All arguments are 0-based.
+						Side_0based,//unsigned side,
+						1000,// sector_0based NO IMPORTANCE HERE.
 						LOG_strings,//TStrings* LOG_strings,
-						*Resultat_Piste_Brute,//Infos_Secteurs_Piste_brute_16ko &Resultat_Piste_Brute,
-						NULL);//p_memoire_secteur);//BYTE* p_memoire_secteur); // Là où on copiera AUSSI les données du secteur recherché.
+						*Raw_Track_Result,//SSectorInfoInRawTrack16kb &Raw_Track_Result,
+						NULL);//pSectorMemory);//BYTE* pSectorMemory); // Where we'll ALSO copy the data from the searched sector.
 
 
-				// pour les essais plus approfondis: la sauvegarde de la piste brute:
-				// (Peut aussi servir aux utilisateurs qui rencontrent un problème).
+				// for more extensive testing: saving the raw track:
+				// (Can also be used by users who encounter a problem).
 
-				if (sauve_infos_pistes_brutes)
+				if (save_raw_track_infos)
 				{
-					//if ( ! sauvegarde_infos_pistes_brutes_deja_effectuee) // Avec cette vérif, on ne garde qu'une trace d'analyse, ce qui me semble insuffisant.
+					//if ( ! raw_track_info_saving_already_done) // With this check, we only keep a trace of analysis, which seems insufficient to me.
 					{
-						sauvegarde_infos_pistes_brutes_deja_effectuee=true;
+						raw_track_info_saving_already_done=true;
 
-						AnsiString nom,s;
+						AnsiString name,s;
 						{
 							time_t tt;
 							time(&tt);
@@ -716,15 +716,15 @@ bool	TTrack::CP_analyse_piste_brute(// on lit la piste brute.
 
 							if (t != NULL)
 							{
-								nom.printf("%04d-%02d-%02d %02d.%02d.%02d ",
+								name.printf("%04d-%02d-%02d %02d.%02d.%02d ",
 									t->tm_year+1900,t->tm_mon+1,t->tm_mday,
 									t->tm_hour,t->tm_min,t->tm_sec);
 							}
 						}
-						s.printf("Raw track (track %02d, head %d)",Piste_base0,Face_base0);
-						nom = nom+s;
+						s.printf("Raw track (track %02d, head %d)",Track_0based,Side_0based);
+						name = name+s;
 
-						s=nom+".floppy_raw_track";
+						s=name+".floppy_raw_track";
 						HANDLE hf=CreateFile(
 							s.c_str(),//LPCTSTR lpFileName,
 							GENERIC_WRITE,//DWORD dwDesiredAccess,
@@ -743,8 +743,8 @@ bool	TTrack::CP_analyse_piste_brute(// on lit la piste brute.
 							DWORD e;
 							const BOOL okf=WriteFile(
 								hf,//HANDLE hFile,
-								Resultat_Piste_Brute->Contenu_Piste_codee ,//LPCVOID lpBuffer,
-								sizeof(Resultat_Piste_Brute->Contenu_Piste_codee) ,//DWORD nNumberOfBytesToWrite,
+								Raw_Track_Result->Encoded_Track_Content ,//LPCVOID lpBuffer,
+								sizeof(Raw_Track_Result->Encoded_Track_Content) ,//DWORD nNumberOfBytesToWrite,
 								&e,//LPDWORD lpNumberOfBytesWritten,
 								NULL);//LPOVERLAPPED lpOverlapped
 							if (! okf)
@@ -753,276 +753,276 @@ bool	TTrack::CP_analyse_piste_brute(// on lit la piste brute.
 								asm nop
 							}
 							else
-							{ // on sauve aussi les informations utiles:
+							{ // we also save useful information:
 								TStringList* l=new TStringList();
-								l->Add("Raw track information, created by ST Recover.");
-								s.printf("Track %d - Head %d",Piste_base0,Face_base0);
+								l->Add("Raw track information, created by ST RecoverPlus.");
+								s.printf("Track %d - Head %d",Track_0based,Side_0based);
 								l->Add(s);
-								//s.printf("Looking for sector (base 1): %d .. and cannot find it.",secteur_base0+1);
+								//s.printf("Looking for sector (base 1): %d .. and cannot find it.",sector_0based+1);
 								//l->Add(s);
 								//s.printf("Relative beginning of track in octets: %d",-);
 								l->Add("List of found sectors:");
 								const char tt[2][4]={"No","Yes"};
-								for (unsigned is=0;is<Resultat_Piste_Brute->Nb_Secteurs_trouves;is++)
+								for (unsigned is=0;is<Raw_Track_Result->Nb_Sectors_found;is++)
 								{
-									s.printf("Index in raw octets:%d (0x%X) - Identified sector ? %s - ID found ? %s - ID track:%d ID head:%d ID sector_base1:%d ID size bits:%d",
-									Resultat_Piste_Brute->Infos_Secteur[is].Index_Dans_Contenu_Piste_Codee,
-									Resultat_Piste_Brute->Infos_Secteur[is].Index_Dans_Contenu_Piste_Codee,
-									tt[Resultat_Piste_Brute->Infos_Secteur[is].Secteur_identifie & 1],
-									tt[Resultat_Piste_Brute->Infos_Secteur[is].ID_trouve_directement & 1],
-									Resultat_Piste_Brute->Infos_Secteur[is].ID_Piste,
-									Resultat_Piste_Brute->Infos_Secteur[is].ID_Face,
-									Resultat_Piste_Brute->Infos_Secteur[is].ID_Secteur_base1,
-									Resultat_Piste_Brute->Infos_Secteur[is].ID_Taille);
+									s.printf("Index in raw octets:%d (0x%X) - Identified sector ? %s - ID found ? %s - ID track:%d ID head:%d ID sector_1based:%d ID size bits:%d",
+									Raw_Track_Result->Sector_Infos[is].Index_In_Encoded_Track_Content,
+									Raw_Track_Result->Sector_Infos[is].Index_In_Encoded_Track_Content,
+									tt[Raw_Track_Result->Sector_Infos[is].Sector_Identified & 1],
+									tt[Raw_Track_Result->Sector_Infos[is].ID_found_directly & 1],
+									Raw_Track_Result->Sector_Infos[is].Track_ID,
+									Raw_Track_Result->Sector_Infos[is].Side_ID,
+									Raw_Track_Result->Sector_Infos[is].Sector_ID_1based,
+									Raw_Track_Result->Sector_Infos[is].Size_ID);
 									l->Add(s);
 								}
 
-								s=nom+" - Informations.txt";
+								s=name+" - Informations.txt";
 								l->SaveToFile(s);
 								delete l;
 							}
 
 							CloseHandle(hf);
 						} // endif (hf == INVALID_HANDLE_VALUE)
-					} // endif ( ! dejasauve)
-				}  // endif sauve_infos_pistes_brutes
-			} // endif if ((! secteurlu) || (sauvetoujourspistebrut && (nb_essais_ici==0)))
+					} // endif ( ! already saved)
+				}  // endif save_raw_track_infos
+			} // endif if ((! is_sector_read) || (always_save_raw_track && (nb_tries_here==0)))
 
-		nb_essais_ici++;
+		nb_tries_here++;
 
 	return OK;
 }
 //---------------------------------------------------------------------------
 
-BYTE* TTrack::reserve_memoire_secteur(unsigned secteur_base0, unsigned nombre_octets)
+BYTE* TTrack::reserve_sector_memory(unsigned sector_0based, unsigned bytes_number)
 {
-	// on vérifie si ce secteur a déjà une mémoire attribuée.
-	if (contenu_secteurs.index_memoire_secteurs_base1[secteur_base0+1] != 0)
-		return & contenu_secteurs.memoire[contenu_secteurs.index_memoire_secteurs_base1[secteur_base0+1]];
+	// We check if this sector already has an assigned memory.
+	if (Sectors_content.sectors_memory_index_1based[sector_0based+1] != 0)
+		return & Sectors_content.memory[Sectors_content.sectors_memory_index_1based[sector_0based+1]];
 
-	// Maintenant on réserve une mémoire.
+	// Now we reserve a memory.
 
-	if ((contenu_secteurs.index_memoire_libre+nombre_octets)
-			> sizeof(contenu_secteurs.memoire))
-		return NULL; // plus assez de mémoire dispo. Ce qui serait très étrange !
+	if ((Sectors_content.free_memory_index+bytes_number)
+			> sizeof(Sectors_content.memory))
+		return NULL; // More enough memory available. Which would be very strange!
 
-	// On évite de commencer au début, sinon le 1er index sera zéro, ce qui poserait un problème plus haut.
-	if (contenu_secteurs.index_memoire_libre < 16)
-		contenu_secteurs.index_memoire_libre=16;
+	// We avoid starting at the start, otherwise the 1st index will be zero, which would pose a higher problem.
+	if (Sectors_content.free_memory_index < 16)
+		Sectors_content.free_memory_index=16;
 
-	if ( (secteur_base0+1+1)
-	 > (sizeof(contenu_secteurs.index_memoire_secteurs_base1)
-			/ sizeof(contenu_secteurs.index_memoire_secteurs_base1[0])) )
-		return NULL; // plus assez d'indexs dispo.
+	if ( (sector_0based+1+1)
+	 > (sizeof(Sectors_content.sectors_memory_index_1based)
+			/ sizeof(Sectors_content.sectors_memory_index_1based[0])) )
+		return NULL; // The more enough indexes available.
 
-	contenu_secteurs.index_memoire_secteurs_base1[secteur_base0+1]=contenu_secteurs.index_memoire_libre;
-	contenu_secteurs.index_memoire_libre += nombre_octets;
+	Sectors_content.sectors_memory_index_1based[sector_0based+1]=Sectors_content.free_memory_index;
+	Sectors_content.free_memory_index += bytes_number;
 
-	// Met aussi à jour le Tableau_des_Secteurs.
-	s_Secteur* s=
-		&Tableau_des_Secteurs_en_base_0[secteur_base0];
-	s->pContenu = & contenu_secteurs.memoire[contenu_secteurs.index_memoire_secteurs_base1[secteur_base0+1]];
-	s->Taille_en_octets=nombre_octets;
+	// Also updates the table of the sectors sectors array.
+	SSector* s=
+		&Sectors_array_0based[sector_0based];
+	s->pContent = & Sectors_content.memory[Sectors_content.sectors_memory_index_1based[sector_0based+1]];
+	s->Byte_size=bytes_number;
 
-	return s->pContenu;
+	return s->pContent;
 }
 // ====================================
 // ---------------------------------------------------------------------------------
 
-bool	TTrack::Init_et_complete_tableau_blocs_zones(
-	TFloppyDisk* classe_disquette, // classe appelante.
-	std::vector<struct bloc>*	tableau_blocs,
-	infopiste* piste_timer,
+bool	TTrack::Init_and_complete_area_blocks_array(
+	TFloppyDisk* floppy_disk, // Calling class.
+	std::vector<struct SBlock>*	blocks_array,
+	STrackInfo* timer_track,
 	TStrings* LOG_strings,
-	int duree_piste_1_tour) // en microsecondes.
+	int track_1_turn_duration) // in microseconds.
 {
-	// on recherche les espaces vides pouvant abriter un secteur.
+	// We are looking for empty spaces that can host a sector.
 
-	if (tableau_blocs==NULL)
+	if (blocks_array==NULL)
 		return false;
 
-	bool valrenvoi=false;
+	bool return_value=false;
 
 	{
-		// d'abord on détermine la taille des secteurs, et leur séparation.
-		int	taille_secteurs=512;
-		if (piste_timer->fdrawcmd_Timed_Scan_Result->count != 0)
-			taille_secteurs=128 << piste_timer->fdrawcmd_Timed_Scan_Result->Headers[0].size;//par défaut
-		int duree_entre_secteurs=
-			(CLDIS_Nb_minimal_octets_entre_secteurs+taille_secteurs)
-			* CLDIS_Duree_octet_brut_en_microsecondes;//minimum par défaut.
-		int nb_intersecteurs=0;
-		int total_duree_entre_secteurs=0;
-		bool	secteurs_de_taille_uniforme;
+		// First we determine the size of the sectors, and their separation.
+		int	sectors_size=512;
+		if (timer_track->fdrawcmd_Timed_Scan_Result->count != 0)
+			sectors_size=128 << timer_track->fdrawcmd_Timed_Scan_Result->Headers[0].size;// By default.
+		int duration_between_sectors=
+			(CLDIS_Minimum_bytes_number_between_sectors+sectors_size)
+			* CLDIS_Raw_byte_duration_in_microseconds;// Minimum by default.
+		int nb_intersectors=0;
+		int total_duration_between_sectors=0;
+		bool	sectors_of_uniform_size;
 		{
 			int tmini=1000000;
 			int tmaxi=-1;
-			int instant_secteur_precedent=0;
-			for (int isect_timer=0;isect_timer<piste_timer->fdrawcmd_Timed_Scan_Result->count ;isect_timer++ )
+			int previous_sector_time=0;
+			for (int i_timer_sector=0;i_timer_sector<timer_track->fdrawcmd_Timed_Scan_Result->count ;i_timer_sector++ )
 			{
 				const int t=
-					128 << piste_timer->fdrawcmd_Timed_Scan_Result->Headers[isect_timer].size;
+					128 << timer_track->fdrawcmd_Timed_Scan_Result->Headers[i_timer_sector].size;
 				if (t>tmaxi)
 					tmaxi=t;
 				if (t<tmini)
 					tmini=t;
-				int i=piste_timer->fdrawcmd_Timed_Scan_Result->Headers[isect_timer].reltime;
-				if ( ((i-instant_secteur_precedent) > (CLDIS_Nb_minimal_octets_entre_secteurs*CLDIS_Duree_octet_brut_en_microsecondes))
-					&& ((i-instant_secteur_precedent) <= (((t*3)/2+CLDIS_Nb_minimal_octets_entre_secteurs)*CLDIS_Duree_octet_brut_en_microsecondes))
-					&& (isect_timer >= 2) )
+				int i=timer_track->fdrawcmd_Timed_Scan_Result->Headers[i_timer_sector].reltime;
+				if ( ((i-previous_sector_time) > (CLDIS_Minimum_bytes_number_between_sectors*CLDIS_Raw_byte_duration_in_microseconds))
+					&& ((i-previous_sector_time) <= (((t*3)/2+CLDIS_Minimum_bytes_number_between_sectors)*CLDIS_Raw_byte_duration_in_microseconds))
+					&& (i_timer_sector >= 2) )
 				{
-					total_duree_entre_secteurs +=
-						i-instant_secteur_precedent - (t*CLDIS_Duree_octet_brut_en_microsecondes);
-					nb_intersecteurs++;
+					total_duration_between_sectors +=
+						i-previous_sector_time - (t*CLDIS_Raw_byte_duration_in_microseconds);
+					nb_intersectors++;
 				}
 
-				instant_secteur_precedent=i;
-			} // next isect_timer
-			secteurs_de_taille_uniforme=(tmini==tmaxi);
-			taille_secteurs=tmini;
-			if (nb_intersecteurs != 0)
-				duree_entre_secteurs = total_duree_entre_secteurs / nb_intersecteurs;
+				previous_sector_time=i;
+			} // next i_timer_sector
+			sectors_of_uniform_size=(tmini==tmaxi);
+			sectors_size=tmini;
+			if (nb_intersectors != 0)
+				duration_between_sectors = total_duration_between_sectors / nb_intersectors;
 		}
-		//if (secteurs_de_taille_uniforme)
-		{			// On ne peut appliquer cet algo que si les secteurs sont tous de même taille.
-					// Et aussi qu'on a trouvé au moins 1 secteur.
-			int instant_fin_secteur_precedent=0;
+		//if (sectors_of_uniform_size)
+		{			// This algo can only be applied if the sectors are all of the same size.
+					// And also that we found at least 1 sector.
+			int previous_sector_end_time=0;
 
-			for (int isect_timer=0;isect_timer<piste_timer->fdrawcmd_Timed_Scan_Result->count ;isect_timer++ )
+			for (int i_timer_sector=0;i_timer_sector<timer_track->fdrawcmd_Timed_Scan_Result->count ;i_timer_sector++ )
 			{
-				bloc bl;
-				bl.instant_depart=instant_fin_secteur_precedent;
-				bl.duree_espace_libre_en_1er =
-					piste_timer->fdrawcmd_Timed_Scan_Result->Headers[isect_timer].reltime
-					- bl.instant_depart;
-				bl.numero_secteur_base1_en_2eme=
-					piste_timer->fdrawcmd_Timed_Scan_Result->Headers[isect_timer].sector;
-				bl.taille_secteur_en_octets_code_bits=
-					piste_timer->fdrawcmd_Timed_Scan_Result->Headers[isect_timer].size;
-				bl.trouve_par_le_controleur=true;
+				SBlock bl;
+				bl.start_time=previous_sector_end_time;
+				bl.free_space_duration_in_1st =
+					timer_track->fdrawcmd_Timed_Scan_Result->Headers[i_timer_sector].reltime
+					- bl.start_time;
+				bl.sector_number_1based_in_2nd=
+					timer_track->fdrawcmd_Timed_Scan_Result->Headers[i_timer_sector].sector;
+				bl.sector_size_in_bytes_bit_code=
+					timer_track->fdrawcmd_Timed_Scan_Result->Headers[i_timer_sector].size;
+				bl.found_by_controller=true;
 
-				tableau_blocs->push_back(bl);
-				instant_fin_secteur_precedent =
-					piste_timer->fdrawcmd_Timed_Scan_Result->Headers[isect_timer].reltime
-					+ (128<<piste_timer->fdrawcmd_Timed_Scan_Result->Headers[isect_timer].size)
-						* CLDIS_Duree_octet_brut_en_microsecondes; //duree_secteur;
-				// On en profite pour calculer la moyenne des espaces normaux entre des secteurs.
-				// On ne compte évidemment pas les vides laissés par les secteurs non détectés.
-				/*int intersecteur=bl.duree_espace_libre_en_1er;
-				if ((intersecteur>=duree_minimale_entre_secteurs)
-					&& (intersecteur<=duree_maximale_entre_secteurs))
+				blocks_array->push_back(bl);
+				previous_sector_end_time =
+					timer_track->fdrawcmd_Timed_Scan_Result->Headers[i_timer_sector].reltime
+					+ (128<<timer_track->fdrawcmd_Timed_Scan_Result->Headers[i_timer_sector].size)
+						* CLDIS_Raw_byte_duration_in_microseconds; //sector_duration;
+				// We take the opportunity to calculate the average of normal spaces between sectors.
+				// We obviously do not count the dismissed spaces by the not detected sectors.
+				/*int intersector=bl.free_space_duration_in_1st;
+				if ((intersector>=minimum_duration_betweeb_sectors)
+					&& (intersector<=maximum_duration_betweeb_sectors))
 				{
-					//duree_entre_secteurs += intersecteur;
-					nb_intersecteurs_normaux++;
+					//duration_between_sectors += intersector;
+					nb_normal_intersectors++;
 				} */
 			}
 
-			const int duree_secteur=taille_secteurs * CLDIS_Duree_octet_brut_en_microsecondes;
-			const int duree_bloc=duree_secteur+duree_entre_secteurs;
-			const int duree_bloc_mini=duree_bloc-12/*NB_MAX_SECTORS_PER_TRACK*/*CLDIS_Duree_octet_brut_en_microsecondes; // normalement, l'espacement est très régulier.
+			const int sector_duration=sectors_size * CLDIS_Raw_byte_duration_in_microseconds;
+			const int block_duration=sector_duration+duration_between_sectors;
+			const int mini_block_duration=block_duration-12/*NB_MAX_SECTORS_PER_TRACK*/*CLDIS_Raw_byte_duration_in_microseconds; // normalement, l'espacement est très régulier.
 
-			{    // L'espace final peut très bien contenir des secteurs pas encore identifiés.
-				const int temps_restant_apres_dernier_secteur_identifie=
-					duree_piste_1_tour - instant_fin_secteur_precedent;
-				if (temps_restant_apres_dernier_secteur_identifie >= duree_bloc_mini)
+			{    // The final space can be well contained well of the sectors not yet identified.
+				const int time_remaining_after_last_identified_sector=
+					track_1_turn_duration - previous_sector_end_time;
+				if (time_remaining_after_last_identified_sector >= mini_block_duration)
 				{
-					// On crée un bloc sans secteur.
-					bloc bl;
-					bl.instant_depart=instant_fin_secteur_precedent;
-					bl.duree_espace_libre_en_1er =
-						duree_piste_1_tour	- bl.instant_depart;
-					bl.numero_secteur_base1_en_2eme=0;
-					bl.taille_secteur_en_octets_code_bits=0;
-					bl.trouve_par_le_controleur=false;
+					// A block without a sector is created.
+					SBlock bl;
+					bl.start_time=previous_sector_end_time;
+					bl.free_space_duration_in_1st =
+						track_1_turn_duration	- bl.start_time;
+					bl.sector_number_1based_in_2nd=0;
+					bl.sector_size_in_bytes_bit_code=0;
+					bl.found_by_controller=false;
           
-					tableau_blocs->push_back(bl);
+					blocks_array->push_back(bl);
 				}
 			}
 
-			if (secteurs_de_taille_uniforme)// && (nb_intersecteurs_normaux != 0))
-			{			// On ne peut appliquer cet algo que si les secteurs sont tous de même taille.
-						// Et aussi qu'on a trouvé au moins 1 secteur (par le controleur).
-				// Etape suivante: on comble les vides avec des secteurs.
-				bool secteur_trouve_par_controleur[CP_NB_MAXI_SECTEURS_PAR_PISTE_BRUTE+2];
-				memset(secteur_trouve_par_controleur,false,sizeof(secteur_trouve_par_controleur));
-				int nb_secteurs_nouveaux=0;
-				// Ici, on ajoute des secteurs là il y a de la place, en créant de nouveaux "blocs".
-				for (int izone=0;izone<(int)(tableau_blocs->size());izone++)
+			if (sectors_of_uniform_size)// && (nb_normal_intersectors != 0))
+			{			// The final space can well contain the sectors not yet identified.
+						// And also that we found at least 1 sector (by controller).
+				// Next step: we fill the gaps with sectors.
+				bool sector_found_by_controller[CP_NB_MAX_SECTORS_PER_RAW_TRACK+2];
+				memset(sector_found_by_controller,false,sizeof(sector_found_by_controller));
+				int nb_new_sectors=0;
+				// Here, we add sectors where there is space, creating new "blocks".
+				for (int izone=0;izone<(int)(blocks_array->size());izone++)
 				{
-					const int espace=(*tableau_blocs)[izone].duree_espace_libre_en_1er;
-					// Le 1er secteur de la piste a un espace court avant lui, c'est normal.
-					const int ajout_debut_piste= (izone==0)
-						? (44-16)*CLDIS_Duree_octet_brut_en_microsecondes
+					const int espace=(*blocks_array)[izone].free_space_duration_in_1st;
+					// The 1st sector of the track has a short space before it, this is normal.
+					const int track_start_addition= (izone==0)
+						? (44-16)*CLDIS_Raw_byte_duration_in_microseconds
 						: 0;
-					const int nb_sect_a_inserer=
-						(espace/*-duree_entre_secteurs*/+ajout_debut_piste)
-						/ duree_bloc_mini;
+					const int nb_sector_to_insert=
+						(espace/*-duration_between_sectors*/+track_start_addition)
+						/ mini_block_duration;
 
-					// On en profite pour lister les secteurs trouvés par le controleur.
+					// We take this opportunity to list the sectors found by the controller.
 					{
-						const unsigned is=(*tableau_blocs)[izone].numero_secteur_base1_en_2eme;
-						if ((is != 0) && (is <=CP_NB_MAXI_SECTEURS_PAR_PISTE_BRUTE))
-							secteur_trouve_par_controleur[(*tableau_blocs)[izone].numero_secteur_base1_en_2eme]=true;
+						const unsigned is=(*blocks_array)[izone].sector_number_1based_in_2nd;
+						if ((is != 0) && (is <=CP_NB_MAX_SECTORS_PER_RAW_TRACK))
+							sector_found_by_controller[(*blocks_array)[izone].sector_number_1based_in_2nd]=true;
 					}
 
-					if (nb_sect_a_inserer > 0)
-					{ // TODO: Ici, il faudrait tenir compte de "ajout_debut_piste".
-						int instant=(*tableau_blocs)[izone].instant_depart;
+					if (nb_sector_to_insert > 0)
+					{ // TODO: Here, it would be necessary to take into account "track_start_addition"
+						int instant=(*blocks_array)[izone].start_time;
 
-						// d'abord met à jour les données du secteur découvert.
+						// First update the data of the discovered sector.
 						{
-							const int diminutionespace=
-								(duree_entre_secteurs/*interespaces*/+duree_secteur)*nb_sect_a_inserer;
-							(*tableau_blocs)[izone].instant_depart
-								+= diminutionespace;
-							(*tableau_blocs)[izone].duree_espace_libre_en_1er
-								-= diminutionespace;
+							const int space_decrease=
+								(duration_between_sectors/*interespaces*/+sector_duration)*nb_sector_to_insert;
+							(*blocks_array)[izone].start_time
+								+= space_decrease;
+							(*blocks_array)[izone].free_space_duration_in_1st
+								-= space_decrease;
 						}
-						// ensuite rempli l'espace libre.
-						for (int iblocins=0;iblocins<nb_sect_a_inserer;iblocins++)
+						// Then fill in the free space.
+						for (int iblockinsert=0;iblockinsert<nb_sector_to_insert;iblockinsert++)
 						{
-							// on crée un secteur au début de l'espace libre.
-							bloc bl;
-							bl.instant_depart=instant;
-							bl.duree_espace_libre_en_1er=duree_entre_secteurs;//interespaces;
-							bl.numero_secteur_base1_en_2eme=0; // pas encore son numéro.
-							bl.taille_secteur_en_octets_code_bits=
-								(*tableau_blocs)[izone].taille_secteur_en_octets_code_bits; // identiques puisque tous les secteurs ont la même taille.
-							bl.trouve_par_le_controleur=false;
-							instant += duree_entre_secteurs/*interespaces*/+duree_secteur;
-							tableau_blocs->insert(tableau_blocs->begin()+izone+iblocins,bl);
-							nb_secteurs_nouveaux++;
+							// A sector is created at the beginning of the free space.
+							SBlock bl;
+							bl.start_time=instant;
+							bl.free_space_duration_in_1st=duration_between_sectors;//interespaces;
+							bl.sector_number_1based_in_2nd=0; // Its number does not exist yet.
+							bl.sector_size_in_bytes_bit_code=
+								(*blocks_array)[izone].sector_size_in_bytes_bit_code; // Identical since all sectors have the same size.
+							bl.found_by_controller=false;
+							instant += duration_between_sectors/*interespaces*/+sector_duration;
+							blocks_array->insert(blocks_array->begin()+izone+iblockinsert,bl);
+							nb_new_sectors++;
 						}
-						izone += nb_sect_a_inserer;// pas la peine de tester les nouveaux blocs.
+						izone += nb_sector_to_insert; // No need to test the new blocks.
 					}
 				}  // next izone
-				/* Supprime la dernière zone, s'il elle n'a pas la place pour contenir
-						au moins un secteur. */
-				if (tableau_blocs->size() != 0)
+				/* Deletes the last zone, if it does not have room to contain
+						at least one sector. */
+				if (blocks_array->size() != 0)
 				{
-					int idernier=tableau_blocs->size()-1;
-					if ((*tableau_blocs)[idernier].taille_secteur_en_octets_code_bits ==0)
-            tableau_blocs->pop_back(); // élimine le dernier.
+					int ilast=blocks_array->size()-1;
+					if ((*blocks_array)[ilast].sector_size_in_bytes_bit_code ==0)
+            blocks_array->pop_back(); // Eliminates the last.
 				}
 
-				// Etape finale: on numérote les secteurs ajoutés.
-				// Pour ça, on détermine l'ordre général.
-				if (nb_secteurs_nouveaux==1)
+				// Final step: we number the added sectors.
+				// For that, we determine the general order.
+				if (nb_new_sectors==1)
 				{
-					// Ici, j'applique la méthode la plus simple:
-					//  trouver le seul secteur qui manque.
-					int numero_secteur_manquant_base1=0;
-					for (int is=1;is<(int)(sizeof(secteur_trouve_par_controleur)/sizeof(secteur_trouve_par_controleur[0]));is++)
+					// Here, I apply the simplest method:
+					//  Find the only missing sector.
+					int missing_sector_number_1based=0;
+					for (int is=1;is<(int)(sizeof(sector_found_by_controller)/sizeof(sector_found_by_controller[0]));is++)
 					{
-						if ( ! secteur_trouve_par_controleur[is])
+						if ( ! sector_found_by_controller[is])
 						{
-							numero_secteur_manquant_base1=is;
-							for (int izone=0;(unsigned)izone<tableau_blocs->size();izone++)
+							missing_sector_number_1based=is;
+							for (int izone=0;(unsigned)izone<blocks_array->size();izone++)
 							{
-								if ( ! (*tableau_blocs)[izone].trouve_par_le_controleur)
+								if ( ! (*blocks_array)[izone].found_by_controller)
 								{
-									(*tableau_blocs)[izone].numero_secteur_base1_en_2eme
-										= numero_secteur_manquant_base1;
+									(*blocks_array)[izone].sector_number_1based_in_2nd
+										= missing_sector_number_1based;
 									break;
 								}
 							}
@@ -1032,145 +1032,145 @@ bool	TTrack::Init_et_complete_tableau_blocs_zones(
 				}
 				else
 				{
-					if (nb_secteurs_nouveaux != 0)  // Ici on analyse l'ordre des secteurs.
+					if (nb_new_sectors != 0)  // Here we analyze the order of the sectors.
 					{
-						//LOG_strings->Add("Warning: more than one (1) sector discovered by raw track read.\nWe need more analysis (not developped now). Please ask to the author ;) Check 'Save track information (debug)', and send the track information files to me.");
+						//LOG_strings->Add("Warning: more than one (1) sector discovered by raw track read.\nWe need more analysis (not developed now). Please ask to the author ;) Check 'Save track information (debug)', and send the track information files to me.");
 
-						/* 1) détermine l'incrément de numéros de secteur
-									(pas forcément "1", à cause des entrelacements de secteurs,
-									par exemple pour les pistes à 11 secteurs, pour accélérer la lecture.*/
-						bool increment_trouve=false;
+						/* 1) Determines the increment of sector numbers
+									(not necessarily "1", because of the interleaving of sectors,
+									for example for the tracks of 11 sectors, to speed up reading.*/
+						bool found_increment=false;
 						int increment=1;
-						const int _NbSecteursParPiste=classe_disquette->NbSecteursParPiste;
-						for (int izone=1;izone<(int)tableau_blocs->size();izone++)
+						const int _NbSectorsPerTrack=floppy_disk->NbSectorsPerTrack;
+						for (int izone=1;izone<(int)blocks_array->size();izone++)
 						{
-							if ((*tableau_blocs)[izone].numero_secteur_base1_en_2eme != 0)
-								if ((*tableau_blocs)[izone-1].numero_secteur_base1_en_2eme != 0)
+							if ((*blocks_array)[izone].sector_number_1based_in_2nd != 0)
+								if ((*blocks_array)[izone-1].sector_number_1based_in_2nd != 0)
 								{
 									increment =
-										(((*tableau_blocs)[izone].numero_secteur_base1_en_2eme
-										- (*tableau_blocs)[izone-1].numero_secteur_base1_en_2eme)
-										+ _NbSecteursParPiste)
-										% _NbSecteursParPiste;
-									increment_trouve=true;
+										(((*blocks_array)[izone].sector_number_1based_in_2nd
+										- (*blocks_array)[izone-1].sector_number_1based_in_2nd)
+										+ _NbSectorsPerTrack)
+										% _NbSectorsPerTrack;
+									found_increment=true;
 									break;
 								}
 						}
 
-						// 2) prépare une liste des secteurs, en numérotant ceux qui manquent.
-						if (increment_trouve)
+						// 2) Prepare a list of sectors, numbering those that are missing.
+						if (found_increment)
 						{
-							int numeros_secteurs_base1[CP_NB_MAXI_SECTEURS_PAR_PISTE_BRUTE+2];
-							memset(numeros_secteurs_base1,0,sizeof(numeros_secteurs_base1));
-							// d'abord de la fin vers le début, pour assurer le numéro du 1er secteur de la piste.
-							int n_precedent=0;
-							for (int izone=tableau_blocs->size()-1;izone >=0;izone--)
+							int sectors_numbers_1based[CP_NB_MAX_SECTORS_PER_RAW_TRACK+2];
+							memset(sectors_numbers_1based,0,sizeof(sectors_numbers_1based));
+							// First from the end towards the start, to ensure the number of the 1st sector of the track.
+							int n_previous=0;
+							for (int izone=blocks_array->size()-1;izone >=0;izone--)
 							{
-								int n=(*tableau_blocs)[izone].numero_secteur_base1_en_2eme;
-								if ((n == 0) && (n_precedent !=0))
+								int n=(*blocks_array)[izone].sector_number_1based_in_2nd;
+								if ((n == 0) && (n_previous !=0))
 								{
 									n=
-										(((n_precedent-1-increment) + _NbSecteursParPiste)
-										% _NbSecteursParPiste)
-										+1;// "+1" car en base 1.
+										(((n_previous-1-increment) + _NbSectorsPerTrack)
+										% _NbSectorsPerTrack)
+										+1;// "+1" since 1-based.
 								}
-								numeros_secteurs_base1[izone]=n;
-								n_precedent=n;
+								sectors_numbers_1based[izone]=n;
+								n_previous=n;
 							}
-							// ensuite du début vers la fin, pour numéroter tous les secteurs jusqu'à la fin.
-							n_precedent=0;
-							for (int izone=0;izone<(int)tableau_blocs->size();izone++)
+							// Then from start to finish, to number all sectors until the end.
+							n_previous=0;
+							for (int izone=0;izone<(int)blocks_array->size();izone++)
 							{
-								int n=numeros_secteurs_base1[izone];
-								if ((n == 0) && (n_precedent !=0))
+								int n=sectors_numbers_1based[izone];
+								if ((n == 0) && (n_previous !=0))
 								{
 									n=
-										(((n_precedent-1+increment) + _NbSecteursParPiste)
-										% _NbSecteursParPiste)
-										+1;// "+1" car en base 1.
-									numeros_secteurs_base1[izone]=n;
+										(((n_previous-1+increment) + _NbSectorsPerTrack)
+										% _NbSectorsPerTrack)
+										+1;// "+1" since 1-based.
+									sectors_numbers_1based[izone]=n;
 								}
-								n_precedent=n;
+								n_previous=n;
 							}
 
-							/* 3) on construit un tableau des secteurs dans l'ordre numérique,
-										pour voir si tous ne sont présents qu'une fois,
-										pour voir si mon incrément est valable.*/
-							int nombre_de_presences_secteurs_base1[CP_NB_MAXI_SECTEURS_PAR_PISTE_BRUTE+2];
-							memset(nombre_de_presences_secteurs_base1,0,sizeof(nombre_de_presences_secteurs_base1));
-							for (int izone=0;izone<(int)tableau_blocs->size();izone++)
+							/* 3) We build a table of sectors in number order,
+										to see if all are only present once,
+										to see if my increasing is valid.*/
+							int number_of_appearing_sectors_1based[CP_NB_MAX_SECTORS_PER_RAW_TRACK+2];
+							memset(number_of_appearing_sectors_1based,0,sizeof(number_of_appearing_sectors_1based));
+							for (int izone=0;izone<(int)blocks_array->size();izone++)
 							{
-								int n=numeros_secteurs_base1[izone];
-								if (n < CP_NB_MAXI_SECTEURS_PAR_PISTE_BRUTE)
+								int n=sectors_numbers_1based[izone];
+								if (n < CP_NB_MAX_SECTORS_PER_RAW_TRACK)
 								{
-									nombre_de_presences_secteurs_base1[n]++;
+									number_of_appearing_sectors_1based[n]++;
 								}
 							}
-							// chaque numéro de secteur doit être présent une fois et une seule.
-							bool increment_valable=true;
-							if (nombre_de_presences_secteurs_base1[0]!=0) // spécial, car normalement aucun secteur de numéro 0 (car en base 1).
-								increment_valable=false;
+							// Each sector number must be present once and only one.
+							bool increment_valid=true;
+							if (number_of_appearing_sectors_1based[0]!=0) // Special, because normally no sector with number 0 (since 1-based).
+								increment_valid=false;
 							else
-								for (int izone=1;izone<(int)tableau_blocs->size();izone++)
+								for (int izone=1;izone<(int)blocks_array->size();izone++)
 								{
-									if (nombre_de_presences_secteurs_base1[izone] != 1)
+									if (number_of_appearing_sectors_1based[izone] != 1)
 									{
-										increment_valable=false;
-										LOG_strings->Add("Warning: more than one (1) sector discovered by raw track read, AND the increment is not regular (not even regular interlaced sectors).\n We need more analysis (not developped now). Please ask to the author ;) Check 'Save track information (debug)', and send the track information files to me.");
+										increment_valid=false;
+										LOG_strings->Add("Warning: more than one (1) sector discovered by raw track read, AND the increment is not regular (not even regular interlaced sectors).\n We need more analysis (not developed now). Please ask to the author ;) Check 'Save track information (debug)', and send the track information files to me.");
 										break;
 									}
 								}
 
-							// 4) si l'incrément est bon, on l'applique.
-							if (increment_valable)
+							// 4) If the increment is good, it is applied.
+							if (increment_valid)
 							{
-								for (int izone=0;izone<(int)tableau_blocs->size();izone++)
+								for (int izone=0;izone<(int)blocks_array->size();izone++)
 								{
-									if ((*tableau_blocs)[izone].numero_secteur_base1_en_2eme ==0)
-										(*tableau_blocs)[izone].numero_secteur_base1_en_2eme=
-											numeros_secteurs_base1[izone];
+									if ((*blocks_array)[izone].sector_number_1based_in_2nd ==0)
+										(*blocks_array)[izone].sector_number_1based_in_2nd=
+											sectors_numbers_1based[izone];
 								}
 							}
 						}
 					}
 				}
-				valrenvoi=true;
+				return_value=true;
 			}
 		}
 
 	}
-	return valrenvoi;
+	return return_value;
 }
 // ====================================
-bool TTrack::LitSecteursPisteBrute( // Lit la piste actuellement sélectionnée.
-		class TFloppyDisk* classe_disquette, // classe appelante.
-	Infos_Secteurs_Piste_brute_16ko* Resultat)
+bool TTrack::ReadRawTrackSectors( // Reads the currently selected track.
+		class TFloppyDisk* floppy_disk, // Calling class.
+	SSectorInfoInRawTrack16kb* Result)
 {
-	if (Resultat==NULL)
+	if (Result==NULL)
 	{
 		return false;    
 	}
 
 	FD_READ_WRITE_PARAMS rwp =
 		{ FD_OPTION_MFM,
-		classe_disquette->infos_en_direct.Face_Selectionnee,
-		classe_disquette->infos_en_direct.Piste_Selectionnee,
-		classe_disquette->infos_en_direct.Face_Selectionnee,
+		floppy_disk->direct_infos.Selected_Side,
+		floppy_disk->direct_infos.Selected_Track,
+		floppy_disk->direct_infos.Selected_Side,
 		1,//start_
-		7,//size_ :  127<<7 = 16384 octets.
-		255,// eot_, // ou 1 ?
+		7,//size_ :  127<<7 = 16384 bytes.
+		255,// eot_, // or 1 ?
 		1,  // gap
 		0xff };  // datalen
 	DWORD dwRet;
 	bool OK=
 		DeviceIoControl(
-			classe_disquette->hDevice, IOCTL_FDCMD_READ_TRACK, &rwp, sizeof(rwp),
-			&Resultat->Contenu_Piste_codee,//		 pv_,
+			floppy_disk->hDevice, IOCTL_FDCMD_READ_TRACK, &rwp, sizeof(rwp),
+			&Result->Encoded_Track_Content,//		 pv_,
 			16384,//uLength_,
 			&dwRet, NULL);
 	if (OK)
 	{
-		OK &= DecodeTrack(Resultat);
+		OK &= DecodeTrack(Result);
 	}
 
 
@@ -1182,7 +1182,7 @@ WORD CrcBlock (const void* pcv_, size_t uLen_, WORD wCRC_=0xffff)
 {
     static WORD awCRC[256];
 
-    // Build the table if not already built
+    // Build the block if not already built
     if (!awCRC[1])
     {
         for (int i = 0 ; i < 256 ; i++)
@@ -1212,18 +1212,18 @@ void DecodeRun (BYTE *pb_, int nShift_, BYTE* pbOut_, int nLen_)
 		*pbOut_++ = (pb_[0] << nShift_) | (pb_[1] >> (8-nShift_));
 }
 // ====================================
-bool TTrack::DecodeTrack (Infos_Secteurs_Piste_brute_16ko* Resultat)
+bool TTrack::DecodeTrack (SSectorInfoInRawTrack16kb* Result)
 {
-	// Ici, on a la piste de 16 ko chargée, et on doit renseigner la structure.
+	// Here, we have the 16 KB track loaded, and we must fill in the structure.
 	const int nLen_=16384;
-	BYTE* pb_= &Resultat->Contenu_Piste_codee[0];
+	BYTE* pb_= &Result->Encoded_Track_Content[0];
 	bool OK=false;
 
-	int nPiste = 0, nFace = 0, nTaille_bits = 2;
-	unsigned	index_mem_libre=0;
+	int nTrack = 0, nSide = 0, nBits_size = 2;
+	unsigned	free_mem_index=0;
 
 	int nShift, nHeader = 0;
-	int nSector = 0, nSize = 512; // taille de secteur pas défaut, au cas où on ne trouve pas d'ID de secteur.
+	int nSector = 0, nSize = 512; // Default sector size, in case no sector ID is found.
 
 	for (int nPos = 0 ; nPos < nLen_-10 ; nPos++)
 	{
@@ -1252,10 +1252,10 @@ bool TTrack::DecodeTrack (Infos_Secteurs_Piste_brute_16ko* Resultat)
 
 				if (wDiskCrc==wCrc)
 				{
-					nPiste = ab[4];
-					nFace = ab[5];
+					nTrack = ab[4];
+					nSide = ab[5];
 					nSector = ab[6];
-					nTaille_bits = ab[7]; // 0=128; 1=256; 2=512; etc..
+					nBits_size = ab[7]; // 0=128; 1=256; 2=512; etc..
 					nSize = 128 << (ab[7] & 3);
 					nHeader = nPos;
 				}
@@ -1268,37 +1268,37 @@ bool TTrack::DecodeTrack (Infos_Secteurs_Piste_brute_16ko* Resultat)
 					DecodeRun(pb_+nPos, nShift, ab, 4+nSize+2);
 					WORD wCrc = CrcBlock(ab, 4+nSize), wDiskCrc = (ab[4+nSize]<<8)|ab[4+nSize+1];
 
-					// On a trouvé un secteur valide et vérifié.
+					// We found a valid and verified sector.
 					if (wDiskCrc==wCrc)
 					{
 						// If the data is too far from the last header, it lacks a header
-						const bool idtrouve=(nPos-nHeader <= 50);
+						const bool id_found=(nPos-nHeader <= 50);
 						
 						{
-							const unsigned isect=Resultat->Nb_Secteurs_trouves;
+							const unsigned isect=Result->Nb_Sectors_found;
 
-							//Resultat->Infos_Secteur[isect].Donnees_bien_lues=true;
-							Resultat->Infos_Secteur[isect].Index_Dans_Contenu_Piste_Codee
+							//Result->Sector_Infos[isect].Well_read_data=true;
+							Result->Sector_Infos[isect].Index_In_Encoded_Track_Content
               	= nPos;
-							Resultat->Infos_Secteur[isect].Index_Dans_Contenu_Piste_Decodee
-								= index_mem_libre;
-							Resultat->Infos_Secteur[isect].ID_trouve_directement=idtrouve;
-							Resultat->Infos_Secteur[isect].Secteur_identifie=idtrouve;
-							if (idtrouve)
+							Result->Sector_Infos[isect].Index_In_Decoded_Track_Content
+								= free_mem_index;
+							Result->Sector_Infos[isect].ID_found_directly=id_found;
+							Result->Sector_Infos[isect].Sector_Identified=id_found;
+							if (id_found)
 							{
-								Resultat->Infos_Secteur[isect].ID_Piste=nPiste;
-								Resultat->Infos_Secteur[isect].ID_Face=nFace;
-								Resultat->Infos_Secteur[isect].ID_Secteur_base1=nSector;
-								Resultat->Infos_Secteur[isect].ID_Taille=nTaille_bits;
+								Result->Sector_Infos[isect].Track_ID=nTrack;
+								Result->Sector_Infos[isect].Side_ID=nSide;
+								Result->Sector_Infos[isect].Sector_ID_1based=nSector;
+								Result->Sector_Infos[isect].Size_ID=nBits_size;
 							}
 							else
 								asm nop
 							memcpy(
-								&Resultat->Contenu_Piste_decodee[index_mem_libre],
+								&Result->Decoded_Track_Content[free_mem_index],
 								&ab[4],
 								nSize);
-							index_mem_libre += nSize;
-							Resultat->Nb_Secteurs_trouves++;
+							free_mem_index += nSize;
+							Result->Nb_Sectors_found++;
 							OK=true;
 						}
 					}
@@ -1313,35 +1313,35 @@ bool TTrack::DecodeTrack (Infos_Secteurs_Piste_brute_16ko* Resultat)
 	return OK;
 }
 // ====================================
-infopiste*	TTrack::CP_Analyse_Temps_Secteurs( // Analyse la piste, et fourni une carte temporelle des secteurs.
-	class TFloppyDisk* classe_disquette, // classe appelante.
-	unsigned piste,
-	unsigned face)
+STrackInfo*	TTrack::CP_Analyse_Sectors_Time( // Analyzes the track, and provides a time map of the sectors.
+	class TFloppyDisk* floppy_disk, // Calling class.
+	unsigned track,
+	unsigned side)
 {
-	static infopiste infos_renvoyees;
+	static STrackInfo returned_infos;
 	//
-	memset(&infos_renvoyees,0,sizeof(infos_renvoyees));
-	infos_renvoyees.OperationReussie=false; // par défaut.
-	if ( ! classe_disquette->fdrawcmd_sys_installe)
-		return &infos_renvoyees;
+	memset(&returned_infos,0,sizeof(returned_infos));
+	returned_infos.OperationSuccess=false; // By default.
+	if ( ! floppy_disk->fdrawcmd_sys_installed)
+		return &returned_infos;
 
 
 	bool OK=false;
 
 	DWORD dwRet;
 	{
-		// Avec ce pilote (fdrawcmd.sys), on est forcé d'utiliser une autre méthode.
+		// With this driver (fdrawcmd.sys), we are forced to use another method.
 		FD_SEEK_PARAMS seekp;
 
 		// details of seek location
-		seekp.cyl = piste;
-		seekp.head = face;
+		seekp.cyl = track;
+		seekp.head = side;
 
-		OK = CP_selectionne_piste_et_face(classe_disquette,Piste_base0,Face_base0);
+		OK = CP_select_track_and_side(floppy_disk,Track_0based,Side_0based);
 		if (OK)
 		{
-			classe_disquette->infos_en_direct.Piste_Selectionnee=piste; // La tête est actuellement placée ici.
-			classe_disquette->infos_en_direct.Face_Selectionnee=face; // Cette face est actuellement selectionnée.
+			floppy_disk->direct_infos.Selected_Track=track; // The head is currently placed here.
+			floppy_disk->direct_infos.Selected_Side=side; // This side is currently selected.
 		}
 
 	}
@@ -1349,20 +1349,20 @@ infopiste*	TTrack::CP_Analyse_Temps_Secteurs( // Analyse la piste, et fourni une
 	// set up scan parameters
 	FD_SCAN_PARAMS sp;
 	sp.flags = FD_OPTION_MFM;
-	sp.head = face;
+	sp.head = side;
 
 
 	if (OK)
-	{				// Lit le descriptif des secteurs, dans l'ordre, avec leur temps.
+	{				// Reads the description of the sectors, in order, with their time.
 		static struct FD_TIMED_SCAN_RESULT_32 tsr;
-		infos_renvoyees.fdrawcmd_Timed_Scan_Result=&tsr;
+		returned_infos.fdrawcmd_Timed_Scan_Result=&tsr;
 
 		// seek and scan track
-		OK &= DeviceIoControl(classe_disquette->hDevice, IOCTL_FD_TIMED_SCAN_TRACK, &sp, sizeof(sp), &tsr, sizeof(tsr), &dwRet, NULL);
+		OK &= DeviceIoControl(floppy_disk->hDevice, IOCTL_FD_TIMED_SCAN_TRACK, &sp, sizeof(sp), &tsr, sizeof(tsr), &dwRet, NULL);
 	}
 
-	infos_renvoyees.OperationReussie=OK;
-	return &infos_renvoyees;
+	returned_infos.OperationSuccess=OK;
+	return &returned_infos;
 }
 //---------------------------------------------------------------------------
 

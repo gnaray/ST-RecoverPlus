@@ -12,16 +12,16 @@
 #pragma package(smart_init)
 //---------------------------------------------------------------------------
 
-//   Important : les méthodes et les propriétés des objets de la VCL peuvent uniquement
-//   être utilisées dans une méthode appelée en utilisant Synchronize, comme suit :
+//   Important: the methods and properties of VCL objects can only
+//   be used in a method called using Synchronize, as follows:
 //
 //      Synchronize(&UpdateCaption);
 //
-//   où UpdateCaption serait de la forme :
+//   where UpdateCaption would be in the form:
 //
-//      void __fastcall TAnalyseDiskThread::UpdateCaption()
+//      void __fastcall TAccessDiskThread::UpdateCaption()
 //      {
-//        GUIForm1->Caption = "Mis à jour dans un thread";
+//        GUIForm1->Caption = "Update in a thread";
 //      }
 //---------------------------------------------------------------------------
 
@@ -36,7 +36,7 @@ void TAnalyseDiskThread::SetName()
 {
 	THREADNAME_INFO info;
 	info.dwType = 0x1000;
-	info.szName = "Analyse du disque par Thread";
+	info.szName = "Disk analysis by thread";
 	info.dwThreadID = -1;
 	info.dwFlags = 0;
 
@@ -49,49 +49,49 @@ void TAnalyseDiskThread::SetName()
 	}
 }
 //---------------------------------------------------------------------------
-void TAnalyseDiskThread::metajour()
+void TAnalyseDiskThread::update()
 {
-	Application->ProcessMessages();  // laisse l'affichage se mettre à jour.
+	Application->ProcessMessages();  // Let the display update.
 }
 //---------------------------------------------------------------------------
 void __fastcall TAnalyseDiskThread::Execute()
 {
 	SetName();
-	//---- Placer le code du thread ici----
-	if (classe_disque==NULL) {
+    //---- Place the thread code here ----
+	if (floppy_disk==NULL) {
 		this->ReturnValue=false;
 		return;
 	}
-	Thread_en_route=true;
+	ThreadRunning=true;
 		// --------------
 
-	// Analyse des pistes
-	for (int p=0; p<classe_disque->NbPistes; p++ ) {
+	// Track analysis
+	for (int p=0; p<floppy_disk->NbTracks; p++ ) {
 		if (Terminated) {
 			break;
 		}
-		for (int f=0; f<classe_disque->NbFaces; f++ ) {
+		for (int f=0; f<floppy_disk->NbSides; f++ ) {
 			if (Terminated) {
 				break;
 			}
-			infopiste* ip=classe_disque->CD_Analyse_Temps_Secteurs(p,f);//,false,false);
-			if (ip->OperationReussie) {
-				/* on copie les données de la piste dans le tableau de toute la disquette.
-				 Ainsi, l'autre thread peut y accéder en parallèle, même en ayant
-				plusieurs messages de retard (on ne sait jamais). */
-				Tab_analyse_pistes[p][f]=*ip->fdrawcmd_Timed_Scan_Result;
-					// On envoie un message personnalisé: WM_recover_maj_piste_FormAnalyse.
-					//const Donnes_recover_maj_piste_FormAnalyse infos={p,f};
+			STrackInfo* ip=floppy_disk->CD_AnalyseSectorsTime(p,f);//,false,false);
+			if (ip->OperationSuccess) {
+				/* We copy the track data in the table of the whole floppy disk.
+				 Thus, the other thread can access it in parallel, even having
+				 several delay messages (you never know). */
+				Tracks_analysis_array[p][f]=*ip->fdrawcmd_Timed_Scan_Result;
+					// We send a personalized message: WM_recover_maj_FormAnalyse_track.
+					//const Data_recover_maj_FormAnalyse_track infos={p,f};
 					PostMessage(
-						GUIForm1->Handle,WM_recover_maj_piste_FormAnalyse,p,f);
+						GUIForm1->Handle,WM_recover_maj_FormAnalyse_track,p,f);
 			}
 		}
 	}
 
-	Application->ProcessMessages();  // laisse l'affichage se mettre à jour.
+	Application->ProcessMessages();  // Let the display update.
 
-	// fin ----------
+	// end ----------
 	this->ReturnValue=true;
-	Thread_en_route=false;
+	ThreadRunning=false;
 }
 //---------------------------------------------------------------------------

@@ -25,14 +25,14 @@ TGUIForm1 *GUIForm1;
 
 
 
-TFloppyDisk* cldisq=NULL;
+TFloppyDisk* floppy_disk=NULL;
 
 
-TFloppyDisk* cldisq_analyse=NULL;
-TAnalyseDiskThread* thread_Analyse_Disque=NULL;
+TFloppyDisk* floppy_disk_analyse=NULL;
+TAnalyseDiskThread* Analyse_Disk_thread=NULL;
 
-const COLORREF coul_piste_paire=0xff8000;
-const COLORREF coul_piste_impaire=0x00c040;
+const COLORREF even_track_color=0xff8000;
+const COLORREF odd_track_color=0x00c040;
 
 
 // ======================
@@ -43,15 +43,15 @@ __fastcall TGUIForm1::TGUIForm1(TComponent* Owner)
 	: TForm(Owner)
 {
 	PleaseCancelCurrentOperation=false;
-	ImageFace0->Picture->Bitmap->Canvas->Brush->Color=GUIForm1->Color;
-	ImageFace0->Picture->Bitmap->Width = ImageFace0->ClientWidth;
-	ImageFace0->Picture->Bitmap->Height = ImageFace0->ClientHeight;
+	ImageSide0->Picture->Bitmap->Canvas->Brush->Color=GUIForm1->Color;
+	ImageSide0->Picture->Bitmap->Width = ImageSide0->ClientWidth;
+	ImageSide0->Picture->Bitmap->Height = ImageSide0->ClientHeight;
 
-	ImageFace1->Picture->Bitmap->Canvas->Brush->Color=GUIForm1->Color;
-	ImageFace1->Picture->Bitmap->Width = ImageFace1->ClientWidth;
-	ImageFace1->Picture->Bitmap->Height = ImageFace1->ClientHeight;
+	ImageSide1->Picture->Bitmap->Canvas->Brush->Color=GUIForm1->Color;
+	ImageSide1->Picture->Bitmap->Width = ImageSide1->ClientWidth;
+	ImageSide1->Picture->Bitmap->Height = ImageSide1->ClientHeight;
 
-	PageControlResultats->ActivePage=TabSheetTablesFaces;
+	PageControlResults->ActivePage=TabSheetSidesGrids;
 
 	Application->HintPause=0;
 	Application->HintShortPause=0;
@@ -59,122 +59,121 @@ __fastcall TGUIForm1::TGUIForm1(TComponent* Owner)
 //---------------------------------------------------------------------------
 void __fastcall TGUIForm1::ButtonReadDiskClick(TObject *Sender)
 {
-	// Procédure pour lire les secteurs de la disquette.
+	// Procedure to read the sectors of the diskette.
 
 
 	this->MemoLOG->Lines->Clear();
 
-	// Maintenant on lit le disque.
-	cldisq=new TFloppyDisk();
-	if (cldisq==NULL)
+	// Now we read the disc.
+	floppy_disk=new TFloppyDisk();
+	if (floppy_disk==NULL)
 		return;
 
-	if ( cldisq->OuvreDisquette(ComboBoxDisque->ItemIndex,
-		Temps_ComboBoxTempsMaxi_en_ms[ComboBoxTempsMaxi->ItemIndex],
+	if ( floppy_disk->OpenFloppyDisk(ComboBoxDisk->ItemIndex,
+		Time_ComboBoxMaxiTime_in_ms[ComboBoxMaxiTime->ItemIndex],
 		this->MemoLOG->Lines, &PleaseCancelCurrentOperation,
-		GUIForm1->CheckBoxSauveInfosPistesBrutes->Checked ))
+		GUIForm1->CheckBoxSaveRawTrackInfos->Checked ))
 	{
-		// on demande de choisir le fichier .ST à enregistrer.
-                // The user to choose the .ST file to save.
-		if (SaveDialogImageDisque->Execute())
+		// You are asked to choose the .ST file to save.
+		if (SaveDialogDiskImage->Execute())
 		{
-			const DWORD instant_depart=GetTickCount();
-			const DWORD duree_autorisee=Temps_ComboBoxTempsMaxi_en_ms[ComboBoxTempsMaxi->ItemIndex];
+			const DWORD start_time=GetTickCount();
+			const DWORD authorized_duration=Time_ComboBoxMaxiTime_in_ms[ComboBoxMaxiTime->ItemIndex];
 
-			BitBtnAnnule->Enabled=true;
+			BitBtnCancel->Enabled=true;
 			TAccessDiskThread* th=new TAccessDiskThread(true);
 			if (th != NULL) {
-				th->classe_disque=cldisq;
+				th->floppy_disk=floppy_disk;
 
-				// Efface les graphiques (méthode à revoir par la suite).
-				this->DrawGridSecteursFaceA->Invalidate();
-				this->DrawGridSecteursFaceB->Invalidate();
-				PageControlResultats->ActivePage=TabSheetTablesFaces;
+				// Erase the graphics (method to be reviewed later).
+				this->DrawGridSideASectors->Invalidate();
+				this->DrawGridSideBSectors->Invalidate();
+				PageControlResults->ActivePage=TabSheetSidesGrids;
 
-				unsigned piste,face,secteur_base0;
-				piste=cldisq->infos_en_direct.Piste_Selectionnee;
-				face=cldisq->infos_en_direct.Face_Selectionnee;
-				secteur_base0=cldisq->infos_en_direct.Secteur_en_traitement_base0;
+				unsigned track,side,sector_0based;
+				track=floppy_disk->direct_infos.Selected_Track;
+				side=floppy_disk->direct_infos.Selected_Side;
+				sector_0based=floppy_disk->direct_infos.Sector_under_treatment_0based;
 
-				// Lance le Thread qui effectue la lecture et qui ordonne le dessin.
+				// Starts the Thread which performs the reading and which orders the drawing.
 				#ifndef _DEBUG
 					th->Priority=tpHigher;
 				#endif
 				th->Resume();
 
 				Sleep(200);
-				while(th->Thread_en_route)
+				while(th->ThreadRunning)
 				{
-					const DWORD temps_ecoule= GetTickCount() - instant_depart;
-					const bool temps_depasse= temps_ecoule > duree_autorisee;
-					if (PleaseCancelCurrentOperation || temps_depasse) {
+					const DWORD elapsed_time= GetTickCount() - start_time;
+					const bool is_time_over= elapsed_time > authorized_duration;
+					if (PleaseCancelCurrentOperation || is_time_over) {
 						th->Terminate();
 						if (PleaseCancelCurrentOperation)
 							MemoLOG->Lines->Add("Operation canceled by user (you !).");
-						if (temps_depasse)
+						if (is_time_over)
 							MemoLOG->Lines->Add("Time is up, process gaveup (see Giveup time option).");
 						break;
 					}
 					Application->ProcessMessages();
-					if (piste!=cldisq->infos_en_direct.Piste_Selectionnee
-					|| face!=cldisq->infos_en_direct.Face_Selectionnee
-					|| secteur_base0!=cldisq->infos_en_direct.Secteur_en_traitement_base0) {
-						piste=cldisq->infos_en_direct.Piste_Selectionnee;
-						face=cldisq->infos_en_direct.Face_Selectionnee;
-						secteur_base0=cldisq->infos_en_direct.Secteur_en_traitement_base0;
+					if (track!=floppy_disk->direct_infos.Selected_Track
+					|| side!=floppy_disk->direct_infos.Selected_Side
+					|| sector_0based!=floppy_disk->direct_infos.Sector_under_treatment_0based) {
+						track=floppy_disk->direct_infos.Selected_Track;
+						side=floppy_disk->direct_infos.Selected_Side;
+						sector_0based=floppy_disk->direct_infos.Sector_under_treatment_0based;
 //						static char texteinfos[256];
 //						StringCbPrintf(texteinfos,sizeof(texteinfos)-1,
 //							"Track:%d Side/Head:%d Sector:%d",
-//							piste,face,secteur_base0+1);
+//							track,side,sector_0based+1);
 ////						LabelInformation->Caption=textetemps;
 						LabelInformation->Caption=AnsiString().sprintf(
 							"Track:%d Side/Head:%d Sector:%d",
-							piste,face,secteur_base0+1
+							track,side,sector_0based+1
 						);
 					}
-					static DWORD ancienne_seconde=temps_ecoule/1000;
-					if ((temps_ecoule/1000) != ancienne_seconde)
+					static DWORD old_second=elapsed_time/1000;
+					if ((elapsed_time/1000) != old_second)
 					{
 //						static char textetemps[256];
-						DWORD d=temps_ecoule/1000;
-						const DWORD heure=d/3600;
+						DWORD d=elapsed_time/1000;
+						const DWORD hour=d/3600;
 						d %= 3600;
 						const DWORD minute=d/60;
 						d %= 60;
-						const DWORD seconde=d;
+						const DWORD second=d;
 //						StringCbPrintf(textetemps,sizeof(textetemps)-1,
 //							"Time: %u:%02u:%02u",
-//							heure,minute,seconde);
-//						LabelTempsEcoule->Caption=textetemps;
-						LabelTempsEcoule->Caption=AnsiString().sprintf(
+//							hour,minute,second);
+//						LabelElapsedTime->Caption=textetemps;
+						LabelElapsedTime->Caption=AnsiString().sprintf(
 							"Time: %u:%02u:%02u",
-							heure,minute,seconde
+							hour,minute,second
 						);
-						ancienne_seconde = temps_ecoule/1000;
+						old_second = elapsed_time/1000;
 					}
 					Sleep(200);
 				}
 
-				/* Le passage suivant est nécessaire pour le cas où la fenêtre ait
-				été cachée à la fin de la lecture. Sinon, les graphiques apparaitront incomplets
-				lorsqu'on agrandira de nouveau la fenêtre. */
-				for (int p=0;p<cldisq->NbPistes;p++)
-					for (int s=0;s<cldisq->NbSecteursParPiste;s++)
+				/* The following pass is necessary for the case where the window
+				was hidden at the end of the reading. Otherwise, the graphs will appear incomplete
+				when we enlarge the window. */
+				for (int p=0;p<floppy_disk->NbTracks;p++)
+					for (int s=0;s<floppy_disk->NbSectorsPerTrack;s++)
 					{
 						TGridDrawState ds;
-						TRect rect_invalide = DrawGridSecteursFaceA->CellRect(p, s);
-						DrawGridSecteursFaceADrawCell(DrawGridSecteursFaceA,p,s,rect_invalide,ds);
-						rect_invalide = DrawGridSecteursFaceB->CellRect(p, s);
-						DrawGridSecteursFaceADrawCell(DrawGridSecteursFaceB,p,s,rect_invalide,ds);
+						TRect invalid_rect = DrawGridSideASectors->CellRect(p, s);
+						DrawGridSideASectorsDrawCell(DrawGridSideASectors,p,s, invalid_rect,ds);
+                        invalid_rect = DrawGridSideBSectors->CellRect(p, s);
+						DrawGridSideASectorsDrawCell(DrawGridSideBSectors,p,s, invalid_rect,ds);
 					}
 
 				Application->ProcessMessages();
 				delete th;
 				PleaseCancelCurrentOperation=false;
 			}
-			// fin
-			BitBtnAnnule->Enabled=false;
-			cldisq->FermeDisquette();
+			// end
+			BitBtnCancel->Enabled=false;
+			floppy_disk->CloseFloppyDisk();
 		}
 	}
 	else
@@ -182,64 +181,64 @@ void __fastcall TGUIForm1::ButtonReadDiskClick(TObject *Sender)
 
 	MemoLOG->Lines->Add("Operation terminated.");
 
-	delete cldisq;
-	cldisq=NULL;
+	delete floppy_disk;
+	floppy_disk=NULL;
 }
 //---------------------------------------------------------------------------
-void __fastcall TGUIForm1::DrawGridSecteursFaceADrawCell(TObject *Sender, int ACol,
+void __fastcall TGUIForm1::DrawGridSideASectorsDrawCell(TObject *Sender, int ACol,
 			int ARow, TRect &Rect, TGridDrawState State)
 {
 
 	const TDrawGrid* grid=(TDrawGrid*) Sender;
 
-	static int tabicouleurs[2][NB_MAX_TRACKS][NB_MAX_SECTORS_PER_TRACK]; // Pour mémoriser les couleurs.
-	enum icouleurs {
-		I_CouleurSecteurNonLu=0,
-		I_CouleurSecteurLuOK,
-		I_CouleurSecteurDifficile,
-		I_CouleurSecteurErrone };
-	const COLORREF couleurs[4]={
-		CouleurSecteurNonLu,
-		CouleurSecteurLuOK,
-		CouleurSecteurDifficile,
-		CouleurSecteurErrone };
+	static int colors_array[2][NB_MAX_TRACKS][NB_MAX_SECTORS_PER_TRACK]; // To memorize colors.
+	enum icolors {
+		I_ColorSectorNotRead=0,
+		I_ColorSectorReadOK,
+		I_ColorSectorDifficult,
+		I_ColorSectorError };
+	const COLORREF colors[4]={
+		ColorSectorNotRead,
+		ColorSectorReadOK,
+		ColorSectorDifficult,
+		ColorSectorError };
 
 	const unsigned igrid=
-		Sender==DrawGridSecteursFaceA ? 0 : 1;
+		Sender==DrawGridSideASectors ? 0 : 1;
 
-	COLORREF coul=0;
+	COLORREF color=0;
 
-	if (cldisq != NULL)
-	{    // on utilise les infos fraiches de la disquette.
-		const secteurs* sects=
-			Sender==DrawGridSecteursFaceA ? &cldisq->SecteursFaceA : &cldisq->SecteursFaceB;
-		unsigned icoul=I_CouleurSecteurNonLu;
+	if (floppy_disk != NULL)
+	{    // We use the fresh info from the floppy disk.
+		const SSectors* sects=
+			Sender==DrawGridSideASectors ? &floppy_disk->SectorsSideA : &floppy_disk->SectorsSideB;
+		unsigned icolor=I_ColorSectorNotRead;
 
-		if (sects->lu[ACol][ARow] )
+		if (sects->is_read[ACol][ARow] )
 		{
-			if (sects->erreur[ACol][ARow] )
+			if (sects->error[ACol][ARow] )
 			{
-				if (sects->difficulte_a_lire[ACol][ARow] )
+				if (sects->difficult_to_read[ACol][ARow] )
 				{
-					icoul=I_CouleurSecteurDifficile;
+					icolor=I_ColorSectorDifficult;
 				}
 				else
-					icoul=I_CouleurSecteurLuOK;
+					icolor=I_ColorSectorReadOK;
 			}
 			else
 			{
-				icoul=I_CouleurSecteurErrone;
+				icolor=I_ColorSectorError;
 			}
 		}
-		coul=couleurs[icoul];
-		tabicouleurs[igrid][ACol][ARow]=icoul;
+		color=colors[icolor];
+		colors_array[igrid][ACol][ARow]=icolor;
 	}
-	else  // sinon, on utilise la mémoire de la dernière analyse.
+	else  // Otherwise, we use the memory of the last analysis.
 	{
-		coul=couleurs[tabicouleurs[igrid][ACol][ARow]];
+		color=colors[colors_array[igrid][ACol][ARow]];
 	}
 
-	grid->Canvas->Brush->Color=(TColor) coul;
+	grid->Canvas->Brush->Color=(TColor) color;
 	grid->Canvas->FillRect(Rect);
 }
 //---------------------------------------------------------------------------
@@ -247,11 +246,11 @@ void __fastcall TGUIForm1::ButtonAnalyseClick(TObject *Sender)
 {
 	this->MemoLOG->Lines->Clear();
 
-	PageControlResultats->ActivePage=TabSheetFaces;
-	AnalyseDisquette();
+	PageControlResults->ActivePage=TabSheetSides;
+	AnalyseDisk();
 }
 //---------------------------------------------------------------------------
-void __fastcall TGUIForm1::BitBtnAnnuleClick(TObject *Sender)
+void __fastcall TGUIForm1::BitBtnCancelClick(TObject *Sender)
 {
 	const int r=Application->MessageBox(
 		"Do you really want to cancel the current operation ?",
@@ -262,52 +261,52 @@ void __fastcall TGUIForm1::BitBtnAnnuleClick(TObject *Sender)
 //---------------------------------------------------------------------------
 
 //---------------------------------------------------------------------------
-void __fastcall TGUIForm1::On_recover_maj_piste_FormAnalyse(TMessage &Message)
+void __fastcall TGUIForm1::On_recover_maj_FormAnalyse_track(TMessage &Message)
 {
-	// Pour recevoir un message personnalisé: WM_recover_maj_piste_FormAnalyse.
-	const unsigned piste=Message.WParam;
-	const unsigned face=Message.LParam;
+	// To receive a personalized message: WM_recover_maj_FormAnalyse_track.
+	const unsigned track=Message.WParam;
+	const unsigned side=Message.LParam;
 
-	// On calcule des arcs de cercle, en utilisant un temps de 200 ms par piste.
+	// Circular arcs are calculated, using a time of 200 ms per track.
 
-	const DWORD duree_secteur_en_microsecondes=(200000 * 512 / 6250);
+	const DWORD sector_duration_in_microseconds=(200000 * 512 / 6250);
 	const double PI2 = 3.1415926535897932385 * 2;
 
-	if (thread_Analyse_Disque!=NULL) {
-		const FD_TIMED_SCAN_RESULT_32* ap=&thread_Analyse_Disque->Tab_analyse_pistes[piste][face];
-		TImage* image= (face==0) ? GUIForm1->ImageFace0 : GUIForm1->ImageFace1;
+	if (Analyse_Disk_thread!=NULL) {
+		const FD_TIMED_SCAN_RESULT_32* ap=&Analyse_Disk_thread->Tracks_analysis_array[track][side];
+		TImage* image= (side==0) ? GUIForm1->ImageSide0 : GUIForm1->ImageSide1;
 		image->Picture->Bitmap->Canvas->Pen->Width=2;
 
-		const int rayon_exterieur_piste = 400/2-piste*2 ;
-		//const int rayon_interieur_piste = rayon_exterieur_piste-1 ;
+		const int outer_track_radius = 400/2-track*2 ;
+		//const int inner_track_radius = outer_track_radius-1 ;
 
 		image->Picture->Bitmap->Canvas->Pen->Color= (TColor)  //random(0xffffff);
-			(((piste & 1)==0) ? coul_piste_paire : coul_piste_impaire);
+			(((track & 1)==0) ? even_track_color : odd_track_color);
 
 		for (int s=0;s < ap->count ;s++ ) {
-			const double angle_depart_secteur=
+			const double start_sector_angle=
 				(double)ap->Headers[s].reltime * PI2 / (double)ap->tracktime;
-			const double angle_fin_secteur=
-				(double)(ap->Headers[s].reltime+duree_secteur_en_microsecondes)
+			const double end_sector_angle=
+				(double)(ap->Headers[s].reltime+sector_duration_in_microseconds)
 				* PI2 / (double)ap->tracktime;
-			const double xdebut=cos(angle_depart_secteur)*rayon_exterieur_piste;
-			const double ydebut=sin(angle_depart_secteur)*rayon_exterieur_piste;
-			const double xfin=cos(angle_fin_secteur)*rayon_exterieur_piste;
-			const double yfin=sin(angle_fin_secteur)*rayon_exterieur_piste;
+			const double xstart=cos(start_sector_angle)*outer_track_radius;
+			const double ystart=sin(start_sector_angle)*outer_track_radius;
+			const double xend=cos(end_sector_angle)*outer_track_radius;
+			const double yend=sin(end_sector_angle)*outer_track_radius;
 
-			// petites macros pour se placer au centre de l'image, et pas à l'envers.
+			// Small macros to place yourself in the center of the image, and not upside down.
 			#define x(posXrelative) (200+(posXrelative))
 			#define y(posYrelative) (200-(posYrelative))
 
 			image->Picture->Bitmap->Canvas->Arc(
-				x(-rayon_exterieur_piste), // X1,
-				y(-rayon_exterieur_piste),// int Y1,
-				x(rayon_exterieur_piste),// int X2,
-				y(rayon_exterieur_piste),// int Y2,
-				x(xdebut),// int X3,
-				y(ydebut),// int Y3,
-				x(xfin),//	int X4,
-				y(yfin));// int Y4);
+				x(-outer_track_radius), // X1,
+				y(-outer_track_radius),// int Y1,
+				x(outer_track_radius),// int X2,
+				y(outer_track_radius),// int Y2,
+				x(xstart),// int X3,
+				y(ystart),// int Y3,
+				x(xend),//	int X4,
+				y(yend));// int Y4);
 			#undef x
 			#undef y
 		}
@@ -317,100 +316,100 @@ void __fastcall TGUIForm1::On_recover_maj_piste_FormAnalyse(TMessage &Message)
 
 }
 //---------------------------------------------------------------------------
-bool	__fastcall TGUIForm1::AnalyseDisquette(void)
+bool	__fastcall TGUIForm1::AnalyseDisk(void)
 {
-	// Appelé par le bouton Analyse de GUIForm1.
+	// Called by the Analysis button of GUIForm1.
 
-	const DWORD instant_depart=GetTickCount();
-	const DWORD duree_autorisee=Temps_ComboBoxTempsMaxi_en_ms[ComboBoxTempsMaxi->ItemIndex];
+	const DWORD start_time=GetTickCount();
+	const DWORD authorized_duration =Time_ComboBoxMaxiTime_in_ms[ComboBoxMaxiTime->ItemIndex];
 
 
-	cldisq_analyse=new TFloppyDisk();
-	if (cldisq_analyse==NULL)
+	floppy_disk_analyse=new TFloppyDisk();
+	if (floppy_disk_analyse==NULL)
 	{
 		return false;
 	}
 
 	bool OK=false;
 
-	if (cldisq_analyse->OuvreDisquette(ComboBoxDisque->ItemIndex,
-		Temps_ComboBoxTempsMaxi_en_ms[ComboBoxTempsMaxi->ItemIndex],
+	if (floppy_disk_analyse->OpenFloppyDisk(ComboBoxDisk->ItemIndex,
+		Time_ComboBoxMaxiTime_in_ms[ComboBoxMaxiTime->ItemIndex],
 		this->MemoLOG->Lines, &PleaseCancelCurrentOperation,
-		GUIForm1->CheckBoxSauveInfosPistesBrutes->Checked) )
+		GUIForm1->CheckBoxSaveRawTrackInfos->Checked) )
 	{
-		if ( ! cldisq_analyse->fdrawcmd_sys_installe) {
+		if ( ! floppy_disk_analyse->fdrawcmd_sys_installed) {
 			Application->MessageBox("'fdrawcmd.sys' is needed, and not installed. See your manual for more information.",Application->Name.c_str(),MB_OK | MB_ICONERROR);
 			OK=true;
 		}
 		else
 		{
-			BitBtnAnnule->Enabled=true;
+			BitBtnCancel->Enabled=true;
 			{
-				ImageFace0->Picture->Bitmap->Canvas->FillRect(
-					ImageFace0->Picture->Bitmap->Canvas->ClipRect);
-				ImageFace1->Picture->Bitmap->Canvas->FillRect(
-					ImageFace1->Picture->Bitmap->Canvas->ClipRect);
-				// trace une ligne pour indiquer le marqueur de début de la piste.
-				ImageFace0->Picture->Bitmap->Canvas->MoveTo(200,200);
-				ImageFace0->Picture->Bitmap->Canvas->LineTo(400,200);
-				ImageFace1->Picture->Bitmap->Canvas->MoveTo(200,200);
-				ImageFace1->Picture->Bitmap->Canvas->LineTo(400,200);
+				ImageSide0->Picture->Bitmap->Canvas->FillRect(
+					ImageSide0->Picture->Bitmap->Canvas->ClipRect);
+				ImageSide1->Picture->Bitmap->Canvas->FillRect(
+					ImageSide1->Picture->Bitmap->Canvas->ClipRect);
+				// Draws a line to indicate the start marker of the track.
+				ImageSide0->Picture->Bitmap->Canvas->MoveTo(200,200);
+				ImageSide0->Picture->Bitmap->Canvas->LineTo(400,200);
+				ImageSide1->Picture->Bitmap->Canvas->MoveTo(200,200);
+				ImageSide1->Picture->Bitmap->Canvas->LineTo(400,200);
 			}
 
-			thread_Analyse_Disque=new TAnalyseDiskThread(true);
-			if (thread_Analyse_Disque != NULL) {
-				thread_Analyse_Disque->classe_disque=cldisq_analyse;
+			Analyse_Disk_thread=new TAnalyseDiskThread(true);
+			if (Analyse_Disk_thread != NULL) {
+				Analyse_Disk_thread->floppy_disk=floppy_disk_analyse;
 
-				unsigned piste,face,secteur;
-				piste=cldisq_analyse->infos_en_direct.Piste_Selectionnee;
-				face=cldisq_analyse->infos_en_direct.Face_Selectionnee;
+				unsigned track,side,sector;
+				track=floppy_disk_analyse->direct_infos.Selected_Track;
+				side=floppy_disk_analyse->direct_infos.Selected_Side;
 
 				#ifndef _DEBUG
-					thread_Analyse_Disque->Priority=tpHigher;
+					Analyse_Disk_thread->Priority=tpHigher;
 				#endif
-				thread_Analyse_Disque->Resume();
+				Analyse_Disk_thread->Resume();
 
 				Sleep(200);
-				while(thread_Analyse_Disque->Thread_en_route)
+				while(Analyse_Disk_thread->ThreadRunning)
 				{
-					const DWORD temps_ecoule= GetTickCount() - instant_depart;
-					const bool temps_depasse= temps_ecoule > duree_autorisee;
-					if (PleaseCancelCurrentOperation || temps_depasse) {
-						thread_Analyse_Disque->Terminate();
+					const DWORD elapsed_time= GetTickCount() - start_time;
+					const bool is_time_over= elapsed_time > authorized_duration;
+					if (PleaseCancelCurrentOperation || is_time_over) {
+						Analyse_Disk_thread->Terminate();
 						if (PleaseCancelCurrentOperation)
 							MemoLOG->Lines->Add("Operation canceled by user (you !).");
-						if (temps_depasse)
+						if (is_time_over)
 							MemoLOG->Lines->Add("Time is up, process giveup (see Giveup time option).");
 						break;
 					}
 					Application->ProcessMessages();
-					if (piste!=cldisq_analyse->infos_en_direct.Piste_Selectionnee
-					|| face!=cldisq_analyse->infos_en_direct.Face_Selectionnee
+					if (track!=floppy_disk_analyse->direct_infos.Selected_Track
+					|| side!=floppy_disk_analyse->direct_infos.Selected_Side
 					) { 
-						piste=cldisq_analyse->infos_en_direct.Piste_Selectionnee;
-						face=cldisq_analyse->infos_en_direct.Face_Selectionnee;
+						track=floppy_disk_analyse->direct_infos.Selected_Track;
+						side=floppy_disk_analyse->direct_infos.Selected_Side;
 //						static char texteinfos[256];
 //						StringCbPrintf(texteinfos,sizeof(texteinfos)-1,
 //							"Track:%d Side/Head:%d",
-//							piste,face);//,secteur+1);
+//							track,side);//,sector+1);
 //						LabelInformation->Caption=texteinfos;
 						LabelInformation->Caption=AnsiString().sprintf(
 							"Track:%d Side/Head:%d",
-							piste,face
-						);//,secteur+1);
+							track,side
+						);//,sector+1);
 					}
 					Sleep(200);
 				}
 
 				Application->ProcessMessages();
-				delete thread_Analyse_Disque;
-				thread_Analyse_Disque=NULL;
+				delete Analyse_Disk_thread;
+				Analyse_Disk_thread=NULL;
 				PleaseCancelCurrentOperation=false;
 			}
-			BitBtnAnnule->Enabled=false;
+			BitBtnCancel->Enabled=false;
 		}
-		// fin
-		cldisq_analyse->FermeDisquette();
+		// end
+		floppy_disk_analyse->CloseFloppyDisk();
 	}
 	else
 	{
@@ -418,8 +417,8 @@ bool	__fastcall TGUIForm1::AnalyseDisquette(void)
 		OK=true;
 	}
 
-	delete cldisq_analyse;
-	cldisq_analyse=NULL;
+	delete floppy_disk_analyse;
+	floppy_disk_analyse=NULL;
 
 	MemoLOG->Lines->Add("Operation terminated.");
 
@@ -427,7 +426,7 @@ bool	__fastcall TGUIForm1::AnalyseDisquette(void)
 }
 
 
-void __fastcall TGUIForm1::DrawGridSecteursFaceAMouseMove(TObject *Sender,
+void __fastcall TGUIForm1::DrawGridSideASectorsMouseMove(TObject *Sender,
       TShiftState Shift, int X, int Y)
 {
 	AnsiString s;

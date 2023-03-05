@@ -19,24 +19,24 @@ class TAccessDiskThread : public TThread
 {
   typedef struct tagTHREADNAME_INFO
   {
-    DWORD dwType;     // doit être 0x1000
-    LPCSTR szName;    // pointeur sur le nom (dans l'espace d'adresse de l'utilisateur)
-    DWORD dwThreadID; // ID de thread (-1=thread de l'appelant)
-    DWORD dwFlags;    // réservé pour une future utilisation, doit être zéro
+    DWORD dwType;     // must be 0x1000
+    LPCSTR szName;    // pointer to name (in user's address space)
+    DWORD dwThreadID; // Thread ID (-1 = caller thread)
+    DWORD dwFlags;    // reserved for future use, must be zero
   } THREADNAME_INFO;
 private:
 
-	RECT rect_invalide;
+	RECT invalid_rect;
 	TDrawGrid* grid;
 
 	void SetName();
-	void __fastcall MetAJourLAffichage();
+	void __fastcall UpdateDisplay();
 protected:
 	void __fastcall Execute();
 public:
 
-	TFloppyDisk* classe_disque;
-	bool		Thread_en_route;
+	TFloppyDisk* floppy_disk;
+	bool		ThreadRunning;
 
 
 	__fastcall TAccessDiskThread(bool CreateSuspended);

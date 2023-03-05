@@ -16,16 +16,16 @@
 
 //---------------------------------------------------------------------------
 
-//   Important : les méthodes et les propriétés des objets de la CVL peuvent uniquement
-//   être utilisées dans une méthode appelée en utilisant Synchronize, comme suit :
+//   Important: the methods and properties of VCL objects can only
+//   be used in a method called using Synchronize, as follows:
 //
 //      Synchronize(&UpdateCaption);
 //
-//   où UpdateCaption serait de la forme :
+//   where UpdateCaption would be in the form:
 //
 //      void __fastcall TAccessDiskThread::UpdateCaption()
 //      {
-//        GUIForm1->Caption = "Mis à jour dans un thread";
+//        GUIForm1->Caption = "Update in a thread";
 //      }
 //---------------------------------------------------------------------------
 
@@ -38,7 +38,7 @@ void TAccessDiskThread::SetName()
 {
 	THREADNAME_INFO info;
 	info.dwType = 0x1000;
-	info.szName = "Accès disque";
+	info.szName = "Access disk";
 	info.dwThreadID = -1;
 	info.dwFlags = 0;
 
@@ -54,18 +54,18 @@ void TAccessDiskThread::SetName()
 void __fastcall TAccessDiskThread::Execute()
 {
 	SetName();
-	//---- Placer le code du thread ici----
+	//---- Place the thread code here ----
 
-	if (classe_disque==NULL)
+	if (floppy_disk==NULL)
 	{
 		this->ReturnValue=false;
 		return;
 	}
 
-	// Crée le fichier pour enregistrer l'image du disque:
+	// Create the file to save disk image:
 
 	const HANDLE himagefile=CreateFile(
-		GUIForm1->SaveDialogImageDisque->FileName.c_str(),//LPCTSTR lpFileName,
+		GUIForm1->SaveDialogDiskImage->FileName.c_str(),//LPCTSTR lpFileName,
 		GENERIC_WRITE ,//DWORD dwDesiredAccess,
 		FILE_SHARE_READ ,//DWORD dwShareMode,
 		NULL, //LPSECURITY_ATTRIBUTES lpSecurityAttributes,
@@ -74,111 +74,111 @@ void __fastcall TAccessDiskThread::Execute()
 		NULL);//HANDLE hTemplateFile	);
 	if (himagefile == INVALID_HANDLE_VALUE)
 	{
-		return; // erreur d'écriture.
+		return; // writing error.
 	}
 
 
-	Thread_en_route=true;
+	ThreadRunning=true;
 
-	const DWORD heure_maxi=
-		Temps_ComboBoxTempsMaxi_en_ms[GUIForm1->ComboBoxTempsMaxi->ItemIndex]
+	const DWORD maxi_hour=
+		Time_ComboBoxMaxiTime_in_ms[GUIForm1->ComboBoxMaxiTime->ItemIndex]
 		+ GetTickCount();
 
 
 	std::vector<BYTE> phrase;
 	{
-		phrase.reserve(classe_disque->NbOctetsParSecteur);
+		phrase.reserve(floppy_disk->NbBytesPerSector);
 		const BYTE repetition[]="======== SORRY, THIS SECTOR CANNOT BE READ FROM FLOPPY DISK BY ST RECOVER. ========\r\n";
-		for (unsigned iph=0;iph<classe_disque->NbOctetsParSecteur;iph+=sizeof(repetition)-1)
+		for (unsigned iph=0;iph<floppy_disk->NbBytesPerSector;iph+=sizeof(repetition)-1)
 		{
 			int tcop=sizeof(repetition)-1;
-			if ((iph+tcop) > classe_disque->NbOctetsParSecteur)
-				tcop=classe_disque->NbOctetsParSecteur-iph;
+			if ((iph+tcop) > floppy_disk->NbBytesPerSector)
+				tcop=floppy_disk->NbBytesPerSector-iph;
 			memcpy(&phrase[iph],repetition,tcop);
 		}
 	}
 
-	s_Secteur*	p_infos_secteur=NULL;
+	SSector*	p_sector_infos=NULL;
 
 
 
 
-		// Lecture des secteurs
+		// Reading sectors
 
-	for (int p=0; p<classe_disque->NbPistes; p++ )
+	for (int p=0; p<floppy_disk->NbTracks; p++ )
 	{
 		if (Terminated)
 		{
 			break;
 		}
-		for (int f=0; f<classe_disque->NbFaces; f++ )
+		for (int f=0; f<floppy_disk->NbSides; f++ )
 		{
 			if (Terminated)
 			{
 				break;
 			}
-			static BYTE contenu_secteurs_piste[6400];
-			BYTE*		pcontenu=contenu_secteurs_piste;
+			static BYTE Track_sectors_content[6400];
+			BYTE*		pContent=Track_sectors_content;
 			grid=
-				f==0 ? GUIForm1->DrawGridSecteursFaceA : GUIForm1->DrawGridSecteursFaceB;
-			secteurs* sects=
-				f==0 ? &classe_disque->SecteursFaceA : &classe_disque->SecteursFaceB;
-			for (int s=0; s<classe_disque->NbSecteursParPiste; s++)
+				f==0 ? GUIForm1->DrawGridSideASectors : GUIForm1->DrawGridSideBSectors;
+			SSectors* sects=
+				f==0 ? &floppy_disk->SectorsSideA : &floppy_disk->SectorsSideB;
+			for (int s=0; s<floppy_disk->NbSectorsPerTrack; s++)
 			{
 				if (Terminated)
 				{
 					break;
 				}
-				const bool OK=classe_disque->CD_LitSecteur(p,f,s,
-					heure_maxi-GetTickCount(),GUIForm1->MemoLOG->Lines,
-					&p_infos_secteur, &GUIForm1->PleaseCancelCurrentOperation,
-					GUIForm1->CheckBoxSauveInfosPistesBrutes->Checked );
+				const bool OK=floppy_disk->CD_ReadSector(p,f,s,
+					maxi_hour-GetTickCount(),GUIForm1->MemoLOG->Lines,
+					&p_sector_infos, &GUIForm1->PleaseCancelCurrentOperation,
+					GUIForm1->CheckBoxSaveRawTrackInfos->Checked );
 				if ( ! GUIForm1->PleaseCancelCurrentOperation)
 				{
-					sects->lu[p][s]=true;
-					sects->difficulte_a_lire[p][s]= // difficulté si on n'a pas pu lire en mode normal (avec le simple controleur).
-						p_infos_secteur->Lecture_normale_par_controleur_essayee
-						&& ! p_infos_secteur->Lecture_normale_par_controleur_reussie;
-					sects->erreur[p][s] = OK;
-					if (((pcontenu-contenu_secteurs_piste)+p_infos_secteur->Taille_en_octets)<=(int)sizeof(contenu_secteurs_piste))
+					sects->is_read[p][s]=true;
+					sects->difficult_to_read[p][s]= // Difficulty if we could not read in normal mode (with simple controller).
+						p_sector_infos->Normal_reading_by_controller_tried
+						&& ! p_sector_infos->Normal_reading_by_controller_success;
+					sects->error[p][s] = OK;
+					if (((pContent-Track_sectors_content)+p_sector_infos->Byte_size)<=(int)sizeof(Track_sectors_content))
 					{
-						if (OK) // on copie les données du secteur.
-							memcpy(pcontenu,p_infos_secteur->pContenu,p_infos_secteur->Taille_en_octets);
-						else // si le secteur n'a pas pu être lu, on met une phrase comme contenu, sinon on aurait un décalage dans l'image disque.
+						if (OK) // We copy the data in the sector.
+							memcpy(pContent,p_sector_infos->pContent,p_sector_infos->Byte_size);
+						else // If the sector could not read, we put a sentence as content, otherwise we would have a discrepancy in the disk image.
 						{
-								memcpy(pcontenu,&phrase[0],p_infos_secteur->Taille_en_octets);
+								memcpy(pContent,&phrase[0],p_sector_infos->Byte_size);
 						}
-						pcontenu += p_infos_secteur->Taille_en_octets;// InfosSect->Taille;
+						pContent += p_sector_infos->Byte_size;// InfosSect->Size;
 					}
 
-					rect_invalide = grid->CellRect(p, s);
+					invalid_rect = grid->CellRect(p, s);
 
-					InvalidateRect(grid->Handle, &rect_invalide, TRUE);
+					InvalidateRect(grid->Handle, &invalid_rect, TRUE);
 				} // endif ( ! Terminated)
 			}
 			{
 				DWORD NumberOfBytesWritten=0;
-				/*BOOL ecritureok=*/ WriteFile(
+				/*BOOL writing_ok=*/ WriteFile(
 					himagefile,//HANDLE hFile,
-					contenu_secteurs_piste,//LPCVOID lpBuffer,
-					pcontenu-contenu_secteurs_piste,//DWORD nNumberOfBytesToWrite,
+					Track_sectors_content,//LPCVOID lpBuffer,
+					pContent-Track_sectors_content,//DWORD nNumberOfBytesToWrite,
 					&NumberOfBytesWritten,//LPDWORD lpNumberOfBytesWritten,
 					NULL);//LPOVERLAPPED lpOverlapped
 			}
 		}
 	} // next p
 
-	Application->ProcessMessages();  // laisse l'affichage se mettre à jour.
+	Application->ProcessMessages();  // Let the display update.
 
 	phrase.clear();
 
 	CloseHandle(himagefile);
 
-	Thread_en_route=false;
+	ThreadRunning=false;
 	this->ReturnValue=true;
 }
 //---------------------------------------------------------------------------
-void __fastcall TAccessDiskThread::MetAJourLAffichage()
+void __fastcall TAccessDiskThread::UpdateDisplay()
 {
-	InvalidateRect(grid->Handle, &rect_invalide, TRUE);
+	InvalidateRect(grid->Handle, &invalid_rect, TRUE);
 }

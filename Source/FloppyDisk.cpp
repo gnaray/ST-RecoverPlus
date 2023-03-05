@@ -22,31 +22,31 @@
 
 __fastcall TFloppyDisk::TFloppyDisk(void)
 {
-	ArchitectureDisqueConnue=false;
+	KnownDiskArchitecture=false;
 	hDevice=INVALID_HANDLE_VALUE;
 	Win9X=false;
-	fdrawcmd_sys_installe=false;
-	classe_Piste_actuelle=NULL;
+	fdrawcmd_sys_installed=false;
+	current_Track=NULL;
 }
 //---------------------------------------------------------------------------
-bool		TFloppyDisk::OuvreDisquette(unsigned lecteur, // lecteur: 0=A , 1=B , etc..
-	DWORD temps_alloue_ms, TStrings* LOG_strings,
-	volatile bool*	p_annulateur, // si cette variable devient vraie, on annule l'opération en cours.
-	bool sauve_infos_pistes_brutes)
+bool		TFloppyDisk::OpenFloppyDisk(unsigned floppy_drive, // floppy_drive: 0=A , 1=B , etc..
+	DWORD allowed_time_ms, TStrings* LOG_strings,
+	volatile bool*	p_canceller, // If this variable becomes true, the current operation is cancelled.
+	bool save_raw_track_infos)
 {
-	ArchitectureDisqueConnue=false;
-	const DWORD limite_temps=GetTickCount()+temps_alloue_ms;
+	KnownDiskArchitecture=false;
+	const DWORD time_limit=GetTickCount()+allowed_time_ms;
 
-	LecteurSelectionne=lecteur;
+	SelectedFloppyDrive=floppy_drive;
 
-	// Valeurs par défaut:
-	NbSecteursParPiste=NB_MAX_SECTORS_PER_TRACK;
-	NbPistes=NB_MAX_TRACKS;
-	NbFaces=2;
-	NbOctetsParSecteur=512;
+	// Default values:
+	NbSectorsPerTrack=NB_MAX_SECTORS_PER_TRACK;
+	NbTracks=NB_MAX_TRACKS;
+	NbSides=2;
+	NbBytesPerSector=512;
 
-	memset(&SecteursFaceA,0,sizeof(SecteursFaceA));
-	memset(&SecteursFaceB,0,sizeof(SecteursFaceB));
+	memset(&SectorsSideA,0,sizeof(SectorsSideA));
+	memset(&SectorsSideB,0,sizeof(SectorsSideB));
 
 	// Creating handle to vwin32.vxd (win 9x)
 	hDevice = CreateFile ( "\\\\.\\vwin32",
@@ -63,19 +63,19 @@ bool		TFloppyDisk::OuvreDisquette(unsigned lecteur, // lecteur: 0=A , 1=B , etc.
 	{
 				// win NT/2K/XP code
 		{
-			// Essaie d'accéder au pilote étendu "fdrawcmd.sys".
-			// Voir en http://simonowen.com/fdrawcmd/
+			// Try to access the extended driver "fdrawcmd.sys".
+			// See http://simonowen.com/fdrawcmd/
 			char szDev[] = "\\\\.\\fdraw0"; // 0=A:  1=B:
-			szDev[9] += lecteur;
+			szDev[9] += floppy_drive;
 			hDevice = CreateFile(szDev, GENERIC_READ|GENERIC_WRITE, 0, NULL, OPEN_EXISTING, 0, NULL);
-			fdrawcmd_sys_installe = ((hDevice != NULL) && (hDevice != INVALID_HANDLE_VALUE));
+			fdrawcmd_sys_installed = ((hDevice != NULL) && (hDevice != INVALID_HANDLE_VALUE));
 		}
 
-		if ( ! fdrawcmd_sys_installe)
+		if ( ! fdrawcmd_sys_installed)
 		{
-			// On se contente du pilote normal de Windows, très limité.
+			// We are satisfied with the normal Windows driver, very limited.
 			char _devicename[] = "\\\\.\\A:";
-			_devicename[4] += lecteur;
+			_devicename[4] += floppy_drive;
 
 			// Creating a handle to disk drive using CreateFile () function ..
 			hDevice = CreateFile(_devicename,
@@ -88,25 +88,25 @@ bool		TFloppyDisk::OuvreDisquette(unsigned lecteur, // lecteur: 0=A , 1=B , etc.
 
 	if (OK)
 	{
-		// On va tester s'il y a réellement un disque dans le lecteur.
-		// Sinon on a droit à des mouvements de têtes rapides et dans le vide.
-		if ( fdrawcmd_sys_installe)
+		// We will test if there is really a disk in the drive.
+		// Otherwise, we are entitled to rapid, empty head movements.
+		if ( fdrawcmd_sys_installed)
 		{
-			// Avec ce pilote (fdrawcmd.sys), on est forcé d'utiliser une autre méthode.
+			// With this driver (fdrawcmd.sys), we are forced to use another method.
 			DWORD dwRet;
-			// On a intérêt à remettre à zéro le controleur de disquettes.
+			// We better reset the floppy disk controller.
 			OK = DeviceIoControl(hDevice, IOCTL_FD_RESET, NULL, NULL, NULL, 0, &dwRet, NULL);
-			infos_en_direct.Piste_Selectionnee=0; // La tête est actuellement placée ici.
-			infos_en_direct.Face_Selectionnee=0; // Cette face est actuellement selectionnée.
-      infos_en_direct.Secteur_en_traitement_base0=0; // à priori.
+			direct_infos.Selected_Track=0; // The head is currently placed here.
+			direct_infos.Selected_Side=0; // This side is currently selected.
+      direct_infos.Sector_under_treatment_0based=0; // à priori.
 
-			// Checks whether a disk is present in the drive
+			// Checks whether a disk is present in the drive.
 			OK &= DeviceIoControl(hDevice, IOCTL_FD_CHECK_DISK, NULL, NULL, NULL, 0, &dwRet, NULL);
 
-			// Recalibrer la piste.
+			// Recalibrate the track.
 			OK &= DeviceIoControl(hDevice, IOCTL_FDCMD_RECALIBRATE, NULL, 0, NULL, 0, &dwRet, NULL);
 
-			// set data rate to double-density
+			// Set data rate to double-density.
 			BYTE datarate;
 			datarate = FD_RATE_250K;
 			OK &= DeviceIoControl(hDevice, IOCTL_FD_SET_DATA_RATE, &datarate, sizeof(datarate), NULL, 0, &dwRet, NULL);
@@ -115,36 +115,36 @@ bool		TFloppyDisk::OuvreDisquette(unsigned lecteur, // lecteur: 0=A , 1=B , etc.
 
 	if (OK)
 	{
-		s_Secteur* p_infos_secteur=NULL;
+		SSector* p_sector_infos=NULL;
 		if (
-			CD_LitSecteur(0, 0, 0,	 // tous les arguments sont en base 0.
-				limite_temps-GetTickCount(),LOG_strings, &p_infos_secteur, p_annulateur,
-				sauve_infos_pistes_brutes ) )
+			CD_ReadSector(0, 0, 0,	 // All arguments are 0-based.
+				time_limit-GetTickCount(),LOG_strings, &p_sector_infos, p_canceller,
+				save_raw_track_infos ) )
 		{
-			Secteur_Boot_Atari_ST.Octets_par_secteur = // j'ai déjà eu une valeur de "2" ici.
-				Secteur_Boot_Atari_ST.Octets_par_secteur >= 128
-				? Secteur_Boot_Atari_ST.Octets_par_secteur
+			Atari_ST_Boot_Sector.Bytes_per_sector = // I already had a value of "2" here.
+				Atari_ST_Boot_Sector.Bytes_per_sector >= 128
+				? Atari_ST_Boot_Sector.Bytes_per_sector
 				: 512;
 
-			if (Secteur_Boot_Atari_ST.Nb_secteurs_par_piste == 0) {
-				OK=false; // pb de lecture du secteur de démarrage (ça arrive parfois).
+			if (Atari_ST_Boot_Sector.Nb_sectors_per_track == 0) {
+				OK=false; // Problem reading the start-up sector (it sometimes happens).
 			}
 
 			if (OK)
 			{
-				NbSecteursParPiste=Secteur_Boot_Atari_ST.Nb_secteurs_par_piste;
-				NbPistes=
-					Secteur_Boot_Atari_ST.Nb_secteurs_dans_disquette
-					/ Secteur_Boot_Atari_ST.Nb_secteurs_par_piste
-					/ Secteur_Boot_Atari_ST.Nb_de_faces;
-				NbFaces=Secteur_Boot_Atari_ST.Nb_de_faces;
-				NbOctetsParSecteur=Secteur_Boot_Atari_ST.Octets_par_secteur;
-				ArchitectureDisqueConnue=true;
+				NbSectorsPerTrack=Atari_ST_Boot_Sector.Nb_sectors_per_track;
+				NbTracks=
+					Atari_ST_Boot_Sector.Nb_sectors_on_floppy_disk
+					/ Atari_ST_Boot_Sector.Nb_sectors_per_track
+					/ Atari_ST_Boot_Sector.Nb_sides;
+				NbSides=Atari_ST_Boot_Sector.Nb_sides;
+				NbBytesPerSector=Atari_ST_Boot_Sector.Bytes_per_sector;
+				KnownDiskArchitecture=true;
 
-				if (NbPistes > NB_MAX_TRACKS)
-					NbPistes = NB_MAX_TRACKS; // sécurité
-				if (NbSecteursParPiste > NB_MAX_SECTORS_PER_TRACK)
-					NbSecteursParPiste = NB_MAX_SECTORS_PER_TRACK; // sécurité
+				if (NbTracks > NB_MAX_TRACKS)
+					NbTracks = NB_MAX_TRACKS; // sécurité
+				if (NbSectorsPerTrack > NB_MAX_SECTORS_PER_TRACK)
+					NbSectorsPerTrack = NB_MAX_SECTORS_PER_TRACK; // sécurité
 			}
 		}
 	}
@@ -157,48 +157,48 @@ bool		TFloppyDisk::OuvreDisquette(unsigned lecteur, // lecteur: 0=A , 1=B , etc.
 	return OK;
 }
 // ====================================
-bool	TFloppyDisk::CD_LitSecteur(
-	unsigned piste, // tous les arguments sont en base 0.
-	unsigned face,
-	unsigned secteur_base0,
-	DWORD temps_alloue_ms,
+bool	TFloppyDisk::CD_ReadSector(
+	unsigned track, // All arguments are 0-based.
+	unsigned side,
+	unsigned sector_0based,
+	DWORD allowed_time_ms,
 	TStrings* LOG_strings,
-	s_Secteur** pp_secteur, //Pour recevoir un "s_Secteur*".
-	volatile bool*	p_annulateur, // si cette variable devient vraie, on annule l'opération en cours.
-	bool sauve_infos_pistes_brutes)
+	SSector** pp_sector, //To receive an "SSector*".
+	volatile bool*	p_canceller, // If this variable becomes true, the current operation is cancelled.
+	bool save_raw_track_infos)
 {
-	if (*p_annulateur)
+	if (*p_canceller)
 		return false;
 
-	init_classe_piste_actuelle(piste,face);
+	init_current_track(track,side);
 	
-	if (classe_Piste_actuelle==NULL)
-		return false; // erreur.
+	if (current_Track==NULL)
+		return false; // error.
 	// -------------------------------
 
-	infos_en_direct.Secteur_en_traitement_base0=secteur_base0; // vrai qu'on parvienne à le lire ou pas.
+	direct_infos.Sector_under_treatment_0based=sector_0based; // True whether we manage to read it or not.
 
-	s_Secteur* p_s_secteur=NULL;
-	const bool	OK= classe_Piste_actuelle->CP_LitSecteur(
-		this,//TFloppyDisk* cl_disquette, // classe appelante.		piste,//unsigned piste, // tous les arguments sont en base 0.
-		piste,
-		face,//unsigned face,
-		secteur_base0,//unsigned secteur_base0,
-		temps_alloue_ms,//DWORD temps_alloue_ms,
-		&p_s_secteur,//s_Secteur** p_p_s_secteur) // Ecrit un pointeur sur une classe dans la mémoire fournie.
+	SSector* p_s_sector=NULL;
+	const bool	OK= current_Track->CP_ReadSector(
+		this,//TFloppyDisk* floppy_disk, // Calling class.		track,//unsigned track, // All arguments are 0-based.
+		track,
+		side,//unsigned side,
+		sector_0based,//unsigned sector_0based,
+		allowed_time_ms,//DWORD allowed_time_ms,
+		&p_s_sector,//SSector** p_p_s_sector) // Writes a pointer to a class in the provided memory.
 		LOG_strings,//TStrings* LOG_strings);
-		p_annulateur, // si cette variable devient vraie, on annule l'opération en cours.
-		sauve_infos_pistes_brutes);
-	*pp_secteur=p_s_secteur;
+		p_canceller, // If this variable becomes true, the current operation is cancelled.
+		save_raw_track_infos);
+	*pp_sector=p_s_sector;
 	return OK;
 }
 // ====================================
-bool		TFloppyDisk::FermeDisquette(void)
+bool		TFloppyDisk::CloseFloppyDisk(void)
 {
-	if (classe_Piste_actuelle != NULL)
+	if (current_Track != NULL)
 	{
-		delete classe_Piste_actuelle;
-		classe_Piste_actuelle=NULL;
+		delete current_Track;
+		current_Track=NULL;
 	}
 
 	bool OK=false;
@@ -216,46 +216,46 @@ bool		TFloppyDisk::FermeDisquette(void)
 // ====================================
 __fastcall TFloppyDisk::~TFloppyDisk()
 {
-	TFloppyDisk::FermeDisquette();
+	TFloppyDisk::CloseFloppyDisk();
 }
 // ====================================
-infopiste*	TFloppyDisk::CD_Analyse_Temps_Secteurs(
-	unsigned piste,
-	unsigned face)//,    // tous les arguments sont en base 0.
+STrackInfo*	TFloppyDisk::CD_AnalyseSectorsTime(
+	unsigned track,
+	unsigned side)//,    // All arguments are 0-based.
 {
-	init_classe_piste_actuelle(piste,face);
+	init_current_track(track,side);
 
-	if (classe_Piste_actuelle==NULL)
-		return NULL; // erreur.
+	if (current_Track==NULL)
+		return NULL; // error.
 	// -------------------------------
 
-	return	classe_Piste_actuelle->CP_Analyse_Temps_Secteurs(
-		this,//class TFloppyDisk* classe_disquette, // classe appelante.
-		piste,//unsigned piste,
-		face);//unsigned face);//,    // tous les arguments sont en base 0.
+	return	current_Track->CP_Analyse_Sectors_Time(
+		this,//class TFloppyDisk* floppy_disk, // Calling class.
+		track,//unsigned track,
+		side);//unsigned side);//,    // All arguments are 0-based.
 }
 // ====================================
 
 	// -------------------------------
 	// On utilise la TTrack.
-bool	TFloppyDisk::init_classe_piste_actuelle(unsigned piste,unsigned face)
+bool	TFloppyDisk::init_current_track(unsigned track,unsigned side)
 {
 	{
-		bool doitcreerclasse=false;
-		if (classe_Piste_actuelle == NULL)
-			doitcreerclasse=true;
+		bool must_create_class=false;
+		if (current_Track == NULL)
+			must_create_class=true;
 		else
 			if (
-				(classe_Piste_actuelle->get_Numero_de_piste_base_0() != (int)piste)
-				|| (classe_Piste_actuelle->get_Numero_de_face_base_0() != (int)face) )
+				(current_Track->get_track_number_0based() != (int)track)
+				|| (current_Track->get_side_number_0based() != (int)side) )
 			{
-				delete classe_Piste_actuelle; // Seul endroit où on détruit cette classe.
-				classe_Piste_actuelle=NULL;
-				doitcreerclasse=true;
+				delete current_Track; // Only place where we destroy this class.
+				current_Track=NULL;
+				must_create_class=true;
 			}
-		if (doitcreerclasse)
-			classe_Piste_actuelle=new TTrack(piste,face);
+		if (must_create_class)
+			current_Track=new TTrack(track,side);
 	}
-	return classe_Piste_actuelle != NULL;
+	return current_Track != NULL;
 }
 	// ====================================
