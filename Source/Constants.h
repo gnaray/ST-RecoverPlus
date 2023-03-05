@@ -5,12 +5,11 @@
 
 
 
-#ifndef CONSTANTES_H
+#ifndef ConstantsH
 
-#define CONSTANTES_H 1
+#define ConstantsH 1
 
-const int NB_MAX_PISTES=85;
-const int NB_MAX_SECTEURS_PAR_PISTE=12;
+const int NB_MAX_TRACKS=85;
+const int NB_MAX_SECTORS_PER_TRACK=12;
 
-#endif // CONSTANTES_H
-
+#endif // ConstantsH

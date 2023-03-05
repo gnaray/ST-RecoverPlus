@@ -6,8 +6,8 @@
 #include <vcl.h>
 #pragma hdrstop
 
-#include "Analyse_disque.h"
-#include "Unit1.h"
+#include "AnalyseDiskThread.h"
+#include "GUIForm1.h"
 
 #pragma package(smart_init)
 //---------------------------------------------------------------------------
@@ -19,20 +19,20 @@
 //
 //   où UpdateCaption serait de la forme :
 //
-//      void __fastcall Analyse_Disque::UpdateCaption()
+//      void __fastcall TAnalyseDiskThread::UpdateCaption()
 //      {
-//        Form1->Caption = "Mis à jour dans un thread";
+//        GUIForm1->Caption = "Mis à jour dans un thread";
 //      }
 //---------------------------------------------------------------------------
 
 
 //---------------------------------------------------------------------------
-__fastcall Analyse_Disque::Analyse_Disque(bool CreateSuspended)
+__fastcall TAnalyseDiskThread::TAnalyseDiskThread(bool CreateSuspended)
 	: TThread(CreateSuspended)
 {
 }
 //---------------------------------------------------------------------------
-void Analyse_Disque::SetName()
+void TAnalyseDiskThread::SetName()
 {
 	THREADNAME_INFO info;
 	info.dwType = 0x1000;
@@ -49,12 +49,12 @@ void Analyse_Disque::SetName()
 	}
 }
 //---------------------------------------------------------------------------
-void Analyse_Disque::metajour()
+void TAnalyseDiskThread::metajour()
 {
 	Application->ProcessMessages();  // laisse l'affichage se mettre à jour.
 }
 //---------------------------------------------------------------------------
-void __fastcall Analyse_Disque::Execute()
+void __fastcall TAnalyseDiskThread::Execute()
 {
 	SetName();
 	//---- Placer le code du thread ici----
@@ -83,7 +83,7 @@ void __fastcall Analyse_Disque::Execute()
 					// On envoie un message personnalisé: WM_recover_maj_piste_FormAnalyse.
 					//const Donnes_recover_maj_piste_FormAnalyse infos={p,f};
 					PostMessage(
-						Form1->Handle,WM_recover_maj_piste_FormAnalyse,p,f);
+						GUIForm1->Handle,WM_recover_maj_piste_FormAnalyse,p,f);
 			}
 		}
 	}

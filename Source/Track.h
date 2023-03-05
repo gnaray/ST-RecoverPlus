@@ -5,15 +5,15 @@
 
 
 
-#ifndef Classe_PisteH
-#define Classe_PisteH
+#ifndef TrackH
+#define TrackH
 //---------------------------------------------------------------------------
 
 
 #include <vector>
 #include <windows.h>
 
-#include "Classe_Disquette.h"
+#include "FloppyDisk.h"
 
 // =================== Des définitions générales ===========================
 
@@ -34,7 +34,7 @@
 		BYTE*	pContenu; // Mémoire.
 	};
 
-	// TODO: "infopiste" devrait être supprimé, en faveur de la simple Classe_Piste.
+	// TODO: "infopiste" devrait être supprimé, en faveur de la simple TTrack.
 	struct infopiste
 	{
 		bool									OperationReussie;
@@ -48,7 +48,7 @@
 
 // ===================== La classe en elle-même =========================
 
-class Classe_Piste // ------------------------------------------
+class TTrack // ------------------------------------------
 {
 public:
 
@@ -110,7 +110,7 @@ private:	// Déclarations de l'utilisateur
 
 
 	bool	CP_identifie_secteurs_bruts( // Renvoie si "secteur_base0" a été trouvé.
-		class Classe_Disquette* classe_disquette, // classe appelante.
+		class TFloppyDisk* classe_disquette, // classe appelante.
 		unsigned piste, // tous les arguments sont en base 0.
 		unsigned face,
 		unsigned secteur_base0,
@@ -119,12 +119,12 @@ private:	// Déclarations de l'utilisateur
 		BYTE* p_memoire_secteur); // Là où on copiera AUSSI les données du secteur recherché.
 
 	bool	CP_selectionne_piste_et_face( // seulement avec "fdrawcmd.sys".
-		Classe_Disquette* classe_disquette, // classe appelante.
+		TFloppyDisk* classe_disquette, // classe appelante.
 		unsigned piste, // en base 0.
 		unsigned face); // en base 0.
 
 	bool	Init_et_complete_tableau_blocs_zones(
-		Classe_Disquette* classe_disquette, // classe appelante.
+		TFloppyDisk* classe_disquette, // classe appelante.
 		std::vector<struct bloc>*	tableau_blocs,
 		infopiste* piste_timer,
 		TStrings* LOG_strings,
@@ -142,15 +142,15 @@ public:		// Déclarations de l'utilisateur
 
 	// ------------------ Fonctions publiques ---------------
 
-	Classe_Piste(int Numero_de_piste_base_0, int Numero_de_face_base_0);
+	TTrack(int Numero_de_piste_base_0, int Numero_de_face_base_0);
 
-	~Classe_Piste();
+	~TTrack();
 
 	int	get_Numero_de_piste_base_0(void);
 	int	get_Numero_de_face_base_0(void);
 
-	bool	Classe_Piste::CP_LitSecteur(
-		class Classe_Disquette* classe_disquette, // classe appelante.
+	bool	TTrack::CP_LitSecteur(
+		class TFloppyDisk* classe_disquette, // classe appelante.
 		unsigned piste, // tous les arguments sont en base 0.
 		unsigned face,
 		unsigned secteur_base0,
@@ -160,8 +160,8 @@ public:		// Déclarations de l'utilisateur
 		volatile bool*	p_annulateur, // si cette variable devient vraie, on annule l'opération en cours.
 		bool sauve_infos_pistes_brutes);
 
-	bool	Classe_Piste::CP_LitSecteur_ANCIEN( // POUR ARCHIVES.
-		Classe_Disquette* classe_disquette, // classe appelante.
+	bool	TTrack::CP_LitSecteur_ANCIEN( // POUR ARCHIVES.
+		TFloppyDisk* classe_disquette, // classe appelante.
 		unsigned piste, // tous les arguments sont en base 0.
 		unsigned face,
 		unsigned secteur_base0,
@@ -172,13 +172,13 @@ public:		// Déclarations de l'utilisateur
 		bool sauve_infos_pistes_brutes);
 
 	infopiste*	CP_Analyse_Temps_Secteurs( // Analyse la piste, et fourni une carte temporelle des secteurs.
-		class Classe_Disquette* classe_disquette, // classe appelante.
+		class TFloppyDisk* classe_disquette, // classe appelante.
 		unsigned piste,
 		unsigned face);//,    // tous les arguments sont en base 0.
 
-	bool	Classe_Piste::CP_analyse_piste_brute(// on lit la piste brute.
+	bool	TTrack::CP_analyse_piste_brute(// on lit la piste brute.
 		bool Purement_informatif,// Ne modifie pas les données de secteur. Sinon, on en extrait les informations vers les secteurs.
-		Classe_Disquette* classe_disquette, // classe appelante.
+		TFloppyDisk* classe_disquette, // classe appelante.
 		DWORD temps_alloue_ms,
 		s_Secteur** p_p_s_secteur, // Ecrit un pointeur sur une classe dans la mémoire fournie.
 		TStrings* LOG_strings,
@@ -190,7 +190,7 @@ public:		// Déclarations de l'utilisateur
 private:   // -----------------------------------------
 
 	bool LitSecteursPisteBrute( // Lit la piste actuellement sélectionnée.
-		class Classe_Disquette* classe_disquette, // classe appelante.
+		class TFloppyDisk* classe_disquette, // classe appelante.
 		Infos_Secteurs_Piste_brute_16ko* Resultat);
 
 

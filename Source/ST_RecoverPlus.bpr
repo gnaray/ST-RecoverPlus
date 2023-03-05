@@ -4,8 +4,8 @@
   <MACROS>
     <VERSION value="BCB.06.00"/>
     <PROJECT value="ST_RecoverPlus.exe"/>
-    <OBJFILES value="ST_RecoverPlus.obj Unit1.obj Acces_disque.obj Analyse_disque.obj 
-      Classe_Disquette.obj Classe_Piste.obj"/>
+    <OBJFILES value="ST_RecoverPlus.obj GUIForm1.obj AccessDiskThread.obj AnalyseDiskThread.obj 
+      FloppyDisk.obj Track.obj"/>
     <RESFILES value="ST_RecoverPlus.res"/>
     <IDLFILES value=""/>
     <IDLGENFILES value=""/>
@@ -51,11 +51,11 @@
   <FILELIST>
       <FILE FILENAME="ST_RecoverPlus.res" FORMNAME="" UNITNAME="ST_RecoverPlus.res" CONTAINERID="ResTool" DESIGNCLASS="" LOCALCOMMAND=""/>
       <FILE FILENAME="ST_RecoverPlus.cpp" FORMNAME="" UNITNAME="ST_RecoverPlus" CONTAINERID="CCompiler" DESIGNCLASS="" LOCALCOMMAND=""/>
-      <FILE FILENAME="Unit1.cpp" FORMNAME="Form1" UNITNAME="Unit1" CONTAINERID="CCompiler" DESIGNCLASS="" LOCALCOMMAND=""/>
-      <FILE FILENAME="Acces_disque.cpp" FORMNAME="" UNITNAME="Acces_disque.cpp" CONTAINERID="CCompiler" DESIGNCLASS="" LOCALCOMMAND=""/>
-      <FILE FILENAME="Analyse_disque.cpp" FORMNAME="" UNITNAME="Analyse_disque.cpp" CONTAINERID="CCompiler" DESIGNCLASS="" LOCALCOMMAND=""/>
-      <FILE FILENAME="Classe_Disquette.cpp" FORMNAME="" UNITNAME="Classe_Disquette.cpp" CONTAINERID="CCompiler" DESIGNCLASS="" LOCALCOMMAND=""/>
-      <FILE FILENAME="Classe_Piste.cpp" FORMNAME="" UNITNAME="Classe_Piste.cpp" CONTAINERID="CCompiler" DESIGNCLASS="" LOCALCOMMAND=""/>
+      <FILE FILENAME="GUIForm1.cpp" FORMNAME="Form1" UNITNAME="GUIForm1" CONTAINERID="CCompiler" DESIGNCLASS="" LOCALCOMMAND=""/>
+      <FILE FILENAME="AccessDiskThread.cpp" FORMNAME="" UNITNAME="AccessDiskThread.cpp" CONTAINERID="CCompiler" DESIGNCLASS="" LOCALCOMMAND=""/>
+      <FILE FILENAME="AnalyseDiskThread.cpp" FORMNAME="" UNITNAME="AnalyseDiskThread.cpp" CONTAINERID="CCompiler" DESIGNCLASS="" LOCALCOMMAND=""/>
+      <FILE FILENAME="FloppyDisk.cpp" FORMNAME="" UNITNAME="FloppyDisk.cpp" CONTAINERID="CCompiler" DESIGNCLASS="" LOCALCOMMAND=""/>
+      <FILE FILENAME="Track.cpp" FORMNAME="" UNITNAME="Track.cpp" CONTAINERID="CCompiler" DESIGNCLASS="" LOCALCOMMAND=""/>
   </FILELIST>
   <BUILDTOOLS>
   </BUILDTOOLS>

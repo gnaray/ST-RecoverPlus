@@ -1,4 +1,4 @@
-object Form1: TForm1
+object GUIForm1: TGUIForm1
   Left = 227
   Top = 123
   Width = 902

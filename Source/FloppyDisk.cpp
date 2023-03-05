@@ -7,8 +7,8 @@
 
 #pragma hdrstop
 
-#include "Classe_Disquette.h"
-#include "Constantes.h"
+#include "FloppyDisk.h"
+#include "Constants.h"
 
 
 //---------------------------------------------------------------------------
@@ -20,7 +20,7 @@
 
 
 
-__fastcall Classe_Disquette::Classe_Disquette(void)
+__fastcall TFloppyDisk::TFloppyDisk(void)
 {
 	ArchitectureDisqueConnue=false;
 	hDevice=INVALID_HANDLE_VALUE;
@@ -29,7 +29,7 @@ __fastcall Classe_Disquette::Classe_Disquette(void)
 	classe_Piste_actuelle=NULL;
 }
 //---------------------------------------------------------------------------
-bool		Classe_Disquette::OuvreDisquette(unsigned lecteur, // lecteur: 0=A , 1=B , etc..
+bool		TFloppyDisk::OuvreDisquette(unsigned lecteur, // lecteur: 0=A , 1=B , etc..
 	DWORD temps_alloue_ms, TStrings* LOG_strings,
 	volatile bool*	p_annulateur, // si cette variable devient vraie, on annule l'opération en cours.
 	bool sauve_infos_pistes_brutes)
@@ -40,8 +40,8 @@ bool		Classe_Disquette::OuvreDisquette(unsigned lecteur, // lecteur: 0=A , 1=B ,
 	LecteurSelectionne=lecteur;
 
 	// Valeurs par défaut:
-	NbSecteursParPiste=NB_MAX_SECTEURS_PAR_PISTE;
-	NbPistes=NB_MAX_PISTES;
+	NbSecteursParPiste=NB_MAX_SECTORS_PER_TRACK;
+	NbPistes=NB_MAX_TRACKS;
 	NbFaces=2;
 	NbOctetsParSecteur=512;
 
@@ -141,10 +141,10 @@ bool		Classe_Disquette::OuvreDisquette(unsigned lecteur, // lecteur: 0=A , 1=B ,
 				NbOctetsParSecteur=Secteur_Boot_Atari_ST.Octets_par_secteur;
 				ArchitectureDisqueConnue=true;
 
-				if (NbPistes > NB_MAX_PISTES)
-					NbPistes = NB_MAX_PISTES; // sécurité
-				if (NbSecteursParPiste > NB_MAX_SECTEURS_PAR_PISTE)
-					NbSecteursParPiste = NB_MAX_SECTEURS_PAR_PISTE; // sécurité
+				if (NbPistes > NB_MAX_TRACKS)
+					NbPistes = NB_MAX_TRACKS; // sécurité
+				if (NbSecteursParPiste > NB_MAX_SECTORS_PER_TRACK)
+					NbSecteursParPiste = NB_MAX_SECTORS_PER_TRACK; // sécurité
 			}
 		}
 	}
@@ -157,7 +157,7 @@ bool		Classe_Disquette::OuvreDisquette(unsigned lecteur, // lecteur: 0=A , 1=B ,
 	return OK;
 }
 // ====================================
-bool	Classe_Disquette::CD_LitSecteur(
+bool	TFloppyDisk::CD_LitSecteur(
 	unsigned piste, // tous les arguments sont en base 0.
 	unsigned face,
 	unsigned secteur_base0,
@@ -180,7 +180,7 @@ bool	Classe_Disquette::CD_LitSecteur(
 
 	s_Secteur* p_s_secteur=NULL;
 	const bool	OK= classe_Piste_actuelle->CP_LitSecteur(
-		this,//Classe_Disquette* cl_disquette, // classe appelante.		piste,//unsigned piste, // tous les arguments sont en base 0.
+		this,//TFloppyDisk* cl_disquette, // classe appelante.		piste,//unsigned piste, // tous les arguments sont en base 0.
 		piste,
 		face,//unsigned face,
 		secteur_base0,//unsigned secteur_base0,
@@ -193,7 +193,7 @@ bool	Classe_Disquette::CD_LitSecteur(
 	return OK;
 }
 // ====================================
-bool		Classe_Disquette::FermeDisquette(void)
+bool		TFloppyDisk::FermeDisquette(void)
 {
 	if (classe_Piste_actuelle != NULL)
 	{
@@ -214,12 +214,12 @@ bool		Classe_Disquette::FermeDisquette(void)
 	return OK;
 }
 // ====================================
-__fastcall Classe_Disquette::~Classe_Disquette()
+__fastcall TFloppyDisk::~TFloppyDisk()
 {
-	Classe_Disquette::FermeDisquette();
+	TFloppyDisk::FermeDisquette();
 }
 // ====================================
-infopiste*	Classe_Disquette::CD_Analyse_Temps_Secteurs(
+infopiste*	TFloppyDisk::CD_Analyse_Temps_Secteurs(
 	unsigned piste,
 	unsigned face)//,    // tous les arguments sont en base 0.
 {
@@ -230,15 +230,15 @@ infopiste*	Classe_Disquette::CD_Analyse_Temps_Secteurs(
 	// -------------------------------
 
 	return	classe_Piste_actuelle->CP_Analyse_Temps_Secteurs(
-		this,//class Classe_Disquette* classe_disquette, // classe appelante.
+		this,//class TFloppyDisk* classe_disquette, // classe appelante.
 		piste,//unsigned piste,
 		face);//unsigned face);//,    // tous les arguments sont en base 0.
 }
 // ====================================
 
 	// -------------------------------
-	// On utilise la Classe_Piste.
-bool	Classe_Disquette::init_classe_piste_actuelle(unsigned piste,unsigned face)
+	// On utilise la TTrack.
+bool	TFloppyDisk::init_classe_piste_actuelle(unsigned piste,unsigned face)
 {
 	{
 		bool doitcreerclasse=false;
@@ -254,7 +254,7 @@ bool	Classe_Disquette::init_classe_piste_actuelle(unsigned piste,unsigned face)
 				doitcreerclasse=true;
 			}
 		if (doitcreerclasse)
-			classe_Piste_actuelle=new Classe_Piste(piste,face);
+			classe_Piste_actuelle=new TTrack(piste,face);
 	}
 	return classe_Piste_actuelle != NULL;
 }

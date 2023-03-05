@@ -8,28 +8,28 @@
 #pragma hdrstop
 
 
-#include "Unit1.h"
-#include "Acces_disque.h"
-#include "Classe_Disquette.h"
-#include "Analyse_disque.h"
-#include "Constantes.h"
+#include "GUIForm1.h"
+#include "AccessDiskThread.h"
+#include "FloppyDisk.h"
+#include "AnalyseDiskThread.h"
+#include "Constants.h"
 
 #include <math.h>
 
 //---------------------------------------------------------------------------
 #pragma package(smart_init)
 #pragma resource "*.dfm"
-TForm1 *Form1;
+TGUIForm1 *GUIForm1;
 
 // ======================
 
 
 
-Classe_Disquette* cldisq=NULL;
+TFloppyDisk* cldisq=NULL;
 
 
-Classe_Disquette* cldisq_analyse=NULL;
-Analyse_Disque* thread_Analyse_Disque=NULL;
+TFloppyDisk* cldisq_analyse=NULL;
+TAnalyseDiskThread* thread_Analyse_Disque=NULL;
 
 const COLORREF coul_piste_paire=0xff8000;
 const COLORREF coul_piste_impaire=0x00c040;
@@ -39,15 +39,15 @@ const COLORREF coul_piste_impaire=0x00c040;
 
 
 //---------------------------------------------------------------------------
-__fastcall TForm1::TForm1(TComponent* Owner)
+__fastcall TGUIForm1::TGUIForm1(TComponent* Owner)
 	: TForm(Owner)
 {
 	PleaseCancelCurrentOperation=false;
-	ImageFace0->Picture->Bitmap->Canvas->Brush->Color=Form1->Color;
+	ImageFace0->Picture->Bitmap->Canvas->Brush->Color=GUIForm1->Color;
 	ImageFace0->Picture->Bitmap->Width = ImageFace0->ClientWidth;
 	ImageFace0->Picture->Bitmap->Height = ImageFace0->ClientHeight;
 
-	ImageFace1->Picture->Bitmap->Canvas->Brush->Color=Form1->Color;
+	ImageFace1->Picture->Bitmap->Canvas->Brush->Color=GUIForm1->Color;
 	ImageFace1->Picture->Bitmap->Width = ImageFace1->ClientWidth;
 	ImageFace1->Picture->Bitmap->Height = ImageFace1->ClientHeight;
 
@@ -57,7 +57,7 @@ __fastcall TForm1::TForm1(TComponent* Owner)
 	Application->HintShortPause=0;
 }
 //---------------------------------------------------------------------------
-void __fastcall TForm1::ButtonReadDiskClick(TObject *Sender)
+void __fastcall TGUIForm1::ButtonReadDiskClick(TObject *Sender)
 {
 	// Procédure pour lire les secteurs de la disquette.
 
@@ -65,14 +65,14 @@ void __fastcall TForm1::ButtonReadDiskClick(TObject *Sender)
 	this->MemoLOG->Lines->Clear();
 
 	// Maintenant on lit le disque.
-	cldisq=new Classe_Disquette();
+	cldisq=new TFloppyDisk();
 	if (cldisq==NULL)
 		return;
 
 	if ( cldisq->OuvreDisquette(ComboBoxDisque->ItemIndex,
 		Temps_ComboBoxTempsMaxi_en_ms[ComboBoxTempsMaxi->ItemIndex],
 		this->MemoLOG->Lines, &PleaseCancelCurrentOperation,
-		Form1->CheckBoxSauveInfosPistesBrutes->Checked ))
+		GUIForm1->CheckBoxSauveInfosPistesBrutes->Checked ))
 	{
 		// on demande de choisir le fichier .ST à enregistrer.
                 // The user to choose the .ST file to save.
@@ -82,7 +82,7 @@ void __fastcall TForm1::ButtonReadDiskClick(TObject *Sender)
 			const DWORD duree_autorisee=Temps_ComboBoxTempsMaxi_en_ms[ComboBoxTempsMaxi->ItemIndex];
 
 			BitBtnAnnule->Enabled=true;
-			Acces_Disque* th=new Acces_Disque(true);
+			TAccessDiskThread* th=new TAccessDiskThread(true);
 			if (th != NULL) {
 				th->classe_disque=cldisq;
 
@@ -186,13 +186,13 @@ void __fastcall TForm1::ButtonReadDiskClick(TObject *Sender)
 	cldisq=NULL;
 }
 //---------------------------------------------------------------------------
-void __fastcall TForm1::DrawGridSecteursFaceADrawCell(TObject *Sender, int ACol,
+void __fastcall TGUIForm1::DrawGridSecteursFaceADrawCell(TObject *Sender, int ACol,
 			int ARow, TRect &Rect, TGridDrawState State)
 {
 
 	const TDrawGrid* grid=(TDrawGrid*) Sender;
 
-	static int tabicouleurs[2][NB_MAX_PISTES][NB_MAX_SECTEURS_PAR_PISTE]; // Pour mémoriser les couleurs.
+	static int tabicouleurs[2][NB_MAX_TRACKS][NB_MAX_SECTORS_PER_TRACK]; // Pour mémoriser les couleurs.
 	enum icouleurs {
 		I_CouleurSecteurNonLu=0,
 		I_CouleurSecteurLuOK,
@@ -243,7 +243,7 @@ void __fastcall TForm1::DrawGridSecteursFaceADrawCell(TObject *Sender, int ACol,
 	grid->Canvas->FillRect(Rect);
 }
 //---------------------------------------------------------------------------
-void __fastcall TForm1::ButtonAnalyseClick(TObject *Sender)
+void __fastcall TGUIForm1::ButtonAnalyseClick(TObject *Sender)
 {
 	this->MemoLOG->Lines->Clear();
 
@@ -251,7 +251,7 @@ void __fastcall TForm1::ButtonAnalyseClick(TObject *Sender)
 	AnalyseDisquette();
 }
 //---------------------------------------------------------------------------
-void __fastcall TForm1::BitBtnAnnuleClick(TObject *Sender)
+void __fastcall TGUIForm1::BitBtnAnnuleClick(TObject *Sender)
 {
 	const int r=Application->MessageBox(
 		"Do you really want to cancel the current operation ?",
@@ -262,7 +262,7 @@ void __fastcall TForm1::BitBtnAnnuleClick(TObject *Sender)
 //---------------------------------------------------------------------------
 
 //---------------------------------------------------------------------------
-void __fastcall TForm1::On_recover_maj_piste_FormAnalyse(TMessage &Message)
+void __fastcall TGUIForm1::On_recover_maj_piste_FormAnalyse(TMessage &Message)
 {
 	// Pour recevoir un message personnalisé: WM_recover_maj_piste_FormAnalyse.
 	const unsigned piste=Message.WParam;
@@ -275,7 +275,7 @@ void __fastcall TForm1::On_recover_maj_piste_FormAnalyse(TMessage &Message)
 
 	if (thread_Analyse_Disque!=NULL) {
 		const FD_TIMED_SCAN_RESULT_32* ap=&thread_Analyse_Disque->Tab_analyse_pistes[piste][face];
-		TImage* image= (face==0) ? Form1->ImageFace0 : Form1->ImageFace1;
+		TImage* image= (face==0) ? GUIForm1->ImageFace0 : GUIForm1->ImageFace1;
 		image->Picture->Bitmap->Canvas->Pen->Width=2;
 
 		const int rayon_exterieur_piste = 400/2-piste*2 ;
@@ -317,15 +317,15 @@ void __fastcall TForm1::On_recover_maj_piste_FormAnalyse(TMessage &Message)
 
 }
 //---------------------------------------------------------------------------
-bool	__fastcall TForm1::AnalyseDisquette(void)
+bool	__fastcall TGUIForm1::AnalyseDisquette(void)
 {
-	// Appelé par le bouton Analyse de Form1.
+	// Appelé par le bouton Analyse de GUIForm1.
 
 	const DWORD instant_depart=GetTickCount();
 	const DWORD duree_autorisee=Temps_ComboBoxTempsMaxi_en_ms[ComboBoxTempsMaxi->ItemIndex];
 
 
-	cldisq_analyse=new Classe_Disquette();
+	cldisq_analyse=new TFloppyDisk();
 	if (cldisq_analyse==NULL)
 	{
 		return false;
@@ -336,7 +336,7 @@ bool	__fastcall TForm1::AnalyseDisquette(void)
 	if (cldisq_analyse->OuvreDisquette(ComboBoxDisque->ItemIndex,
 		Temps_ComboBoxTempsMaxi_en_ms[ComboBoxTempsMaxi->ItemIndex],
 		this->MemoLOG->Lines, &PleaseCancelCurrentOperation,
-		Form1->CheckBoxSauveInfosPistesBrutes->Checked) )
+		GUIForm1->CheckBoxSauveInfosPistesBrutes->Checked) )
 	{
 		if ( ! cldisq_analyse->fdrawcmd_sys_installe) {
 			Application->MessageBox("'fdrawcmd.sys' is needed, and not installed. See your manual for more information.",Application->Name.c_str(),MB_OK | MB_ICONERROR);
@@ -357,7 +357,7 @@ bool	__fastcall TForm1::AnalyseDisquette(void)
 				ImageFace1->Picture->Bitmap->Canvas->LineTo(400,200);
 			}
 
-			thread_Analyse_Disque=new Analyse_Disque(true);
+			thread_Analyse_Disque=new TAnalyseDiskThread(true);
 			if (thread_Analyse_Disque != NULL) {
 				thread_Analyse_Disque->classe_disque=cldisq_analyse;
 
@@ -427,7 +427,7 @@ bool	__fastcall TForm1::AnalyseDisquette(void)
 }
 
 
-void __fastcall TForm1::DrawGridSecteursFaceAMouseMove(TObject *Sender,
+void __fastcall TGUIForm1::DrawGridSecteursFaceAMouseMove(TObject *Sender,
       TShiftState Shift, int X, int Y)
 {
 	AnsiString s;

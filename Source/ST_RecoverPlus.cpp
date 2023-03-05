@@ -8,7 +8,7 @@
 #include <vcl.h>
 #pragma hdrstop
 //---------------------------------------------------------------------------
-USEFORM("Unit1.cpp", Form1);
+USEFORM("GUIForm1.cpp", GUIForm1);
 //---------------------------------------------------------------------------
 WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 {
@@ -16,7 +16,7 @@ WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 	{
 		Application->Initialize();
 		Application->Title = "ST RecoverPlus";
-		Application->CreateForm(__classid(TForm1), &Form1);
+		Application->CreateForm(__classid(TGUIForm1), &GUIForm1);
 		Application->Run();
 	}
 	catch (Exception &exception)

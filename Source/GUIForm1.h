@@ -5,8 +5,8 @@
 
 
 
-#ifndef Unit1H
-#define Unit1H
+#ifndef GUIForm1H
+#define GUIForm1H
 //---------------------------------------------------------------------------
 #include <Classes.hpp>
 #include <Controls.hpp>
@@ -39,7 +39,7 @@ const int Temps_ComboBoxTempsMaxi_en_ms[7]={ 300000,900000,1800000,3600000,72000
 
 
 //---------------------------------------------------------------------------
-class TForm1 : public TForm
+class TGUIForm1 : public TForm
 {
 __published:	// Composants gérés par l'EDI
 	TButton *ButtonReadDisk;
@@ -77,10 +77,10 @@ public:		// Déclarations de l'utilisateur
 
 	bool PleaseCancelCurrentOperation;
 
-	__fastcall TForm1(TComponent* Owner);
+	__fastcall TGUIForm1(TComponent* Owner);
 	bool	__fastcall AnalyseDisquette(void);
 };
 //---------------------------------------------------------------------------
-extern PACKAGE TForm1 *Form1;
+extern PACKAGE TGUIForm1 *GUIForm1;
 //---------------------------------------------------------------------------
 #endif

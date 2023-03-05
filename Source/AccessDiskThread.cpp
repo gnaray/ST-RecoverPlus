@@ -7,9 +7,9 @@
 #include <vcl.h>
 #pragma hdrstop
 
-#include "Acces_disque.h"
-#include "Unit1.h"
-//#include "Classe_Disquette.h"
+#include "AccessDiskThread.h"
+#include "GUIForm1.h"
+//#include "FloppyDisk.h"
 #pragma package(smart_init)
 
 
@@ -23,18 +23,18 @@
 //
 //   où UpdateCaption serait de la forme :
 //
-//      void __fastcall Acces_Disque::UpdateCaption()
+//      void __fastcall TAccessDiskThread::UpdateCaption()
 //      {
-//        Form1->Caption = "Mis à jour dans un thread";
+//        GUIForm1->Caption = "Mis à jour dans un thread";
 //      }
 //---------------------------------------------------------------------------
 
-__fastcall Acces_Disque::Acces_Disque(bool CreateSuspended)
+__fastcall TAccessDiskThread::TAccessDiskThread(bool CreateSuspended)
 	: TThread(CreateSuspended)
 {
 }
 //---------------------------------------------------------------------------
-void Acces_Disque::SetName()
+void TAccessDiskThread::SetName()
 {
 	THREADNAME_INFO info;
 	info.dwType = 0x1000;
@@ -51,7 +51,7 @@ void Acces_Disque::SetName()
 	}
 }
 //---------------------------------------------------------------------------
-void __fastcall Acces_Disque::Execute()
+void __fastcall TAccessDiskThread::Execute()
 {
 	SetName();
 	//---- Placer le code du thread ici----
@@ -65,7 +65,7 @@ void __fastcall Acces_Disque::Execute()
 	// Crée le fichier pour enregistrer l'image du disque:
 
 	const HANDLE himagefile=CreateFile(
-		Form1->SaveDialogImageDisque->FileName.c_str(),//LPCTSTR lpFileName,
+		GUIForm1->SaveDialogImageDisque->FileName.c_str(),//LPCTSTR lpFileName,
 		GENERIC_WRITE ,//DWORD dwDesiredAccess,
 		FILE_SHARE_READ ,//DWORD dwShareMode,
 		NULL, //LPSECURITY_ATTRIBUTES lpSecurityAttributes,
@@ -81,7 +81,7 @@ void __fastcall Acces_Disque::Execute()
 	Thread_en_route=true;
 
 	const DWORD heure_maxi=
-		Temps_ComboBoxTempsMaxi_en_ms[Form1->ComboBoxTempsMaxi->ItemIndex]
+		Temps_ComboBoxTempsMaxi_en_ms[GUIForm1->ComboBoxTempsMaxi->ItemIndex]
 		+ GetTickCount();
 
 
@@ -120,7 +120,7 @@ void __fastcall Acces_Disque::Execute()
 			static BYTE contenu_secteurs_piste[6400];
 			BYTE*		pcontenu=contenu_secteurs_piste;
 			grid=
-				f==0 ? Form1->DrawGridSecteursFaceA : Form1->DrawGridSecteursFaceB;
+				f==0 ? GUIForm1->DrawGridSecteursFaceA : GUIForm1->DrawGridSecteursFaceB;
 			secteurs* sects=
 				f==0 ? &classe_disque->SecteursFaceA : &classe_disque->SecteursFaceB;
 			for (int s=0; s<classe_disque->NbSecteursParPiste; s++)
@@ -130,10 +130,10 @@ void __fastcall Acces_Disque::Execute()
 					break;
 				}
 				const bool OK=classe_disque->CD_LitSecteur(p,f,s,
-					heure_maxi-GetTickCount(),Form1->MemoLOG->Lines,
-					&p_infos_secteur, &Form1->PleaseCancelCurrentOperation,
-					Form1->CheckBoxSauveInfosPistesBrutes->Checked );
-				if ( ! Form1->PleaseCancelCurrentOperation)
+					heure_maxi-GetTickCount(),GUIForm1->MemoLOG->Lines,
+					&p_infos_secteur, &GUIForm1->PleaseCancelCurrentOperation,
+					GUIForm1->CheckBoxSauveInfosPistesBrutes->Checked );
+				if ( ! GUIForm1->PleaseCancelCurrentOperation)
 				{
 					sects->lu[p][s]=true;
 					sects->difficulte_a_lire[p][s]= // difficulté si on n'a pas pu lire en mode normal (avec le simple controleur).
@@ -178,7 +178,7 @@ void __fastcall Acces_Disque::Execute()
 	this->ReturnValue=true;
 }
 //---------------------------------------------------------------------------
-void __fastcall Acces_Disque::MetAJourLAffichage()
+void __fastcall TAccessDiskThread::MetAJourLAffichage()
 {
 	InvalidateRect(grid->Handle, &rect_invalide, TRUE);
 }

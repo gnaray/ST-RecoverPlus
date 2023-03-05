@@ -4,18 +4,18 @@
 //---------------------------------------------------------------------------
 
 
-#ifndef Acces_disqueH
-#define Acces_disqueH
+
+#ifndef AnalyseDiskThreadH
+#define AnalyseDiskThreadH
 //---------------------------------------------------------------------------
 #include <Classes.hpp>
-#include <Grids.hpp>
-
-#include "Classe_Disquette.h"
 
 
+#include "FloppyDisk.h"
+#include "Constants.h"
 
 //---------------------------------------------------------------------------
-class Acces_Disque : public TThread
+class TAnalyseDiskThread : public TThread
 {
   typedef struct tagTHREADNAME_INFO
   {
@@ -25,21 +25,17 @@ class Acces_Disque : public TThread
     DWORD dwFlags;    // réservé pour une future utilisation, doit être zéro
   } THREADNAME_INFO;
 private:
-
-	RECT rect_invalide;
-	TDrawGrid* grid;
-
 	void SetName();
-	void __fastcall MetAJourLAffichage();
+	void TAnalyseDiskThread::metajour();
 protected:
 	void __fastcall Execute();
 public:
 
-	Classe_Disquette* classe_disque;
+	FD_TIMED_SCAN_RESULT_32	Tab_analyse_pistes[NB_MAX_TRACKS][2];// maxi 85 pistes et 2 faces.
+	TFloppyDisk* classe_disque;
 	bool		Thread_en_route;
 
-
-	__fastcall Acces_Disque(bool CreateSuspended);
+	__fastcall TAnalyseDiskThread(bool CreateSuspended);
 };
 //---------------------------------------------------------------------------
 #endif

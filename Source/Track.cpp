@@ -7,7 +7,7 @@
 #pragma hdrstop
 
 
-#include "Classe_Piste.h"
+#include "Track.h"
 
 
 //---------------------------------------------------------------------------
@@ -57,7 +57,7 @@ double log2(double x)
 
 //---------------------------------------------------------------------------
 
-Classe_Piste::Classe_Piste(int Numero_de_piste_base_0, int Numero_de_face_base_0)
+TTrack::TTrack(int Numero_de_piste_base_0, int Numero_de_face_base_0)
 {
 	Piste_base0=Numero_de_piste_base_0;
 	Face_base0=Numero_de_face_base_0;
@@ -71,22 +71,22 @@ Classe_Piste::Classe_Piste(int Numero_de_piste_base_0, int Numero_de_face_base_0
 }
 
 //---------------------------------------------------------------------------
-Classe_Piste::~Classe_Piste()
+TTrack::~TTrack()
 {
 }
 //---------------------------------------------------------------------------
-int	Classe_Piste::get_Numero_de_piste_base_0(void)
+int	TTrack::get_Numero_de_piste_base_0(void)
 {
 	return Piste_base0;
 }
 //---------------------------------------------------------------------------
-int	Classe_Piste::get_Numero_de_face_base_0(void)
+int	TTrack::get_Numero_de_face_base_0(void)
 {
 	return Face_base0;
 }
 //---------------------------------------------------------------------------
-bool	Classe_Piste::CP_identifie_secteurs_bruts( // Renvoie si "secteur_base0" a été trouvé.
-	class Classe_Disquette* classe_disquette, // classe appelante.
+bool	TTrack::CP_identifie_secteurs_bruts( // Renvoie si "secteur_base0" a été trouvé.
+	class TFloppyDisk* classe_disquette, // classe appelante.
 	unsigned piste, // tous les arguments sont en base 0.
 	unsigned face,
 	unsigned secteur_base0,
@@ -334,8 +334,8 @@ bool	Classe_Piste::CP_identifie_secteurs_bruts( // Renvoie si "secteur_base0" a 
 
 //---------------------------------------------------------------------------
 //---------------------------------------------------------------------------
-bool	Classe_Piste::CP_LitSecteur(
-	Classe_Disquette* classe_disquette, // classe appelante.
+bool	TTrack::CP_LitSecteur(
+	TFloppyDisk* classe_disquette, // classe appelante.
 	unsigned piste, // tous les arguments sont en base 0.
 	unsigned face,
 	unsigned secteur_base0,
@@ -497,7 +497,7 @@ bool	Classe_Piste::CP_LitSecteur(
 						bool recup_ok=CP_analyse_piste_brute( // seulement avec "fdrawcmd.sys".
 							false,//bool Purement_informatif,// Ne modifie pas les données de secteur.
 							//out_Infos_detaillees,//TStringList* out_Infos_detaillees,
-							classe_disquette,//Classe_Disquette* classe_disquette, // classe appelante.
+							classe_disquette,//TFloppyDisk* classe_disquette, // classe appelante.
 							limite_temps-GetTickCount(),//DWORD temps_alloue_ms,
 							p_p_s_secteur,//s_Secteur** p_p_s_secteur, // Ecrit un pointeur sur une classe dans la mémoire fournie.
 							LOG_strings,//TStrings* LOG_strings,
@@ -585,8 +585,8 @@ bool	Classe_Piste::CP_LitSecteur(
 	return OK;
 }
 //---------------------------------------------------------------------------
-bool	Classe_Piste::CP_selectionne_piste_et_face(
-	Classe_Disquette* classe_disquette, // classe appelante.
+bool	TTrack::CP_selectionne_piste_et_face(
+	TFloppyDisk* classe_disquette, // classe appelante.
 	unsigned piste, // en base 0.
 	unsigned face) // en base 0.
 {
@@ -619,10 +619,10 @@ bool	Classe_Piste::CP_selectionne_piste_et_face(
 	return DeviceIoControl(classe_disquette->hDevice, IOCTL_FDCMD_SEEK, &sp, sizeof(sp), NULL, 0, &dwRet, NULL);
 }
 //---------------------------------------------------------------------------
-bool	Classe_Piste::CP_analyse_piste_brute(// on lit la piste brute.
+bool	TTrack::CP_analyse_piste_brute(// on lit la piste brute.
 	bool Purement_informatif,// Ne modifie pas les données de secteur. Sinon, on en extrait les informations vers les secteurs.
 	//TStringList* out_Infos_detaillees,
-	Classe_Disquette* classe_disquette, // classe appelante.
+	TFloppyDisk* classe_disquette, // classe appelante.
 	DWORD temps_alloue_ms,
 	s_Secteur** p_p_s_secteur, // Ecrit un pointeur sur une classe dans la mémoire fournie.
 	TStrings* LOG_strings,
@@ -690,7 +690,7 @@ bool	Classe_Piste::CP_analyse_piste_brute(// on lit la piste brute.
 
 				if (nb_secteurs_bruts_sans_ID > 0)
 					CP_identifie_secteurs_bruts( // **************************
-						classe_disquette,//class Classe_Disquette* classe_disquette, // classe appelante.
+						classe_disquette,//class TFloppyDisk* classe_disquette, // classe appelante.
 						Piste_base0,//unsigned piste, // tous les arguments sont en base 0.
 						Face_base0,//unsigned face,
 						1000,// secteur_base0 AUCUNE IMPORTANCE ICI.
@@ -794,7 +794,7 @@ bool	Classe_Piste::CP_analyse_piste_brute(// on lit la piste brute.
 }
 //---------------------------------------------------------------------------
 
-BYTE* Classe_Piste::reserve_memoire_secteur(unsigned secteur_base0, unsigned nombre_octets)
+BYTE* TTrack::reserve_memoire_secteur(unsigned secteur_base0, unsigned nombre_octets)
 {
 	// on vérifie si ce secteur a déjà une mémoire attribuée.
 	if (contenu_secteurs.index_memoire_secteurs_base1[secteur_base0+1] != 0)
@@ -829,8 +829,8 @@ BYTE* Classe_Piste::reserve_memoire_secteur(unsigned secteur_base0, unsigned nom
 // ====================================
 // ---------------------------------------------------------------------------------
 
-bool	Classe_Piste::Init_et_complete_tableau_blocs_zones(
-	Classe_Disquette* classe_disquette, // classe appelante.
+bool	TTrack::Init_et_complete_tableau_blocs_zones(
+	TFloppyDisk* classe_disquette, // classe appelante.
 	std::vector<struct bloc>*	tableau_blocs,
 	infopiste* piste_timer,
 	TStrings* LOG_strings,
@@ -919,7 +919,7 @@ bool	Classe_Piste::Init_et_complete_tableau_blocs_zones(
 
 			const int duree_secteur=taille_secteurs * CLDIS_Duree_octet_brut_en_microsecondes;
 			const int duree_bloc=duree_secteur+duree_entre_secteurs;
-			const int duree_bloc_mini=duree_bloc-12/*NB_MAX_SECTEURS_PAR_PISTE*/*CLDIS_Duree_octet_brut_en_microsecondes; // normalement, l'espacement est très régulier.
+			const int duree_bloc_mini=duree_bloc-12/*NB_MAX_SECTORS_PER_TRACK*/*CLDIS_Duree_octet_brut_en_microsecondes; // normalement, l'espacement est très régulier.
 
 			{    // L'espace final peut très bien contenir des secteurs pas encore identifiés.
 				const int temps_restant_apres_dernier_secteur_identifie=
@@ -1142,8 +1142,8 @@ bool	Classe_Piste::Init_et_complete_tableau_blocs_zones(
 	return valrenvoi;
 }
 // ====================================
-bool Classe_Piste::LitSecteursPisteBrute( // Lit la piste actuellement sélectionnée.
-		class Classe_Disquette* classe_disquette, // classe appelante.
+bool TTrack::LitSecteursPisteBrute( // Lit la piste actuellement sélectionnée.
+		class TFloppyDisk* classe_disquette, // classe appelante.
 	Infos_Secteurs_Piste_brute_16ko* Resultat)
 {
 	if (Resultat==NULL)
@@ -1212,7 +1212,7 @@ void DecodeRun (BYTE *pb_, int nShift_, BYTE* pbOut_, int nLen_)
 		*pbOut_++ = (pb_[0] << nShift_) | (pb_[1] >> (8-nShift_));
 }
 // ====================================
-bool Classe_Piste::DecodeTrack (Infos_Secteurs_Piste_brute_16ko* Resultat)
+bool TTrack::DecodeTrack (Infos_Secteurs_Piste_brute_16ko* Resultat)
 {
 	// Ici, on a la piste de 16 ko chargée, et on doit renseigner la structure.
 	const int nLen_=16384;
@@ -1313,8 +1313,8 @@ bool Classe_Piste::DecodeTrack (Infos_Secteurs_Piste_brute_16ko* Resultat)
 	return OK;
 }
 // ====================================
-infopiste*	Classe_Piste::CP_Analyse_Temps_Secteurs( // Analyse la piste, et fourni une carte temporelle des secteurs.
-	class Classe_Disquette* classe_disquette, // classe appelante.
+infopiste*	TTrack::CP_Analyse_Temps_Secteurs( // Analyse la piste, et fourni une carte temporelle des secteurs.
+	class TFloppyDisk* classe_disquette, // classe appelante.
 	unsigned piste,
 	unsigned face)
 {

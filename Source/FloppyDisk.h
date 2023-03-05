@@ -5,8 +5,8 @@
 
 
 
-#ifndef Classe_DisquetteH
-#define Classe_DisquetteH
+#ifndef FloppyDiskH
+#define FloppyDiskH
 
 
 //---------------------------------------------------------------------------
@@ -15,7 +15,7 @@
 #include <windows.h>
 #include "fdrawcmd.h" // pour le pilote "fdrawcmd.sys".
 #include <vector>
-#include "Classe_Piste.h"
+#include "Track.h"
 
 
 
@@ -56,11 +56,11 @@
 
 
 
-class Classe_Disquette // ------------------------------------------
+class TFloppyDisk // ------------------------------------------
 {
 private:	// Déclarations de l'utilisateur
 
-	class Classe_Piste*	classe_Piste_actuelle;
+	class TTrack*	classe_Piste_actuelle;
 
 
 	bool	init_classe_piste_actuelle(unsigned piste,unsigned face);
@@ -124,8 +124,8 @@ public:		// Déclarations de l'utilisateur
 
 
 
-	__fastcall Classe_Disquette();
-	__fastcall ~Classe_Disquette();
+	__fastcall TFloppyDisk();
+	__fastcall ~TFloppyDisk();
 
 
 	bool		OuvreDisquette(unsigned lecteur, // lecteur: 0=A , 1=B , etc..
