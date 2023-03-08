@@ -42,7 +42,7 @@ void TAnalyseDiskThread::SetName()
 
 	__try
 	{
-		RaiseException( 0x406D1388, 0, sizeof(info)/sizeof(DWORD),(DWORD*)&info );
+		RaiseException(0x406D1388, 0, sizeof(info) / sizeof(DWORD), (DWORD*)&info);
 	}
 	__except (EXCEPTION_CONTINUE_EXECUTION)
 	{
@@ -57,33 +57,33 @@ void TAnalyseDiskThread::update()
 void __fastcall TAnalyseDiskThread::Execute()
 {
 	SetName();
-    //---- Place the thread code here ----
-	if (floppy_disk==NULL) {
-		this->ReturnValue=false;
+	//---- Place the thread code here ----
+	if (floppy_disk == NULL) {
+		this->ReturnValue = false;
 		return;
 	}
-	ThreadRunning=true;
-		// --------------
+	ThreadRunning = true;
+	// --------------
 
 	// Track analysis
-	for (int p=0; p<floppy_disk->NbTracks; p++ ) {
+	for (int p = 0; p < floppy_disk->NbTracks; p++) {
 		if (Terminated) {
 			break;
 		}
-		for (int f=0; f<floppy_disk->NbSides; f++ ) {
+		for (int f = 0; f < floppy_disk->NbSides; f++) {
 			if (Terminated) {
 				break;
 			}
-			STrackInfo* ip=floppy_disk->CD_AnalyseSectorsTime(p,f);//,false,false);
+			STrackInfo* ip = floppy_disk->CD_AnalyseSectorsTime(p, f);//,false,false);
 			if (ip->OperationSuccess) {
 				/* We copy the track data in the table of the whole floppy disk.
 				 Thus, the other thread can access it in parallel, even having
 				 several delay messages (you never know). */
-				Tracks_analysis_array[p][f]=*ip->fdrawcmd_Timed_Scan_Result;
-					// We send a personalized message: WM_recover_maj_FormAnalyse_track.
-					//const Data_recover_maj_FormAnalyse_track infos={p,f};
-					PostMessage(
-						GUIForm1->Handle,WM_recover_maj_FormAnalyse_track,p,f);
+				Tracks_analysis_array[p][f] = *ip->fdrawcmd_Timed_Scan_Result;
+				// We send a personalized message: WM_recover_maj_FormAnalyse_track.
+				//const Data_recover_maj_FormAnalyse_track infos={p,f};
+				PostMessage(
+					GUIForm1->Handle, WM_recover_maj_FormAnalyse_track, p, f);
 			}
 		}
 	}
@@ -91,7 +91,7 @@ void __fastcall TAnalyseDiskThread::Execute()
 	Application->ProcessMessages();  // Let the display update.
 
 	// end ----------
-	this->ReturnValue=true;
-	ThreadRunning=false;
+	this->ReturnValue = true;
+	ThreadRunning = false;
 }
 //---------------------------------------------------------------------------

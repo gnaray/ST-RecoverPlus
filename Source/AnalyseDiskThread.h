@@ -17,13 +17,13 @@
 //---------------------------------------------------------------------------
 class TAnalyseDiskThread : public TThread
 {
-  typedef struct tagTHREADNAME_INFO
-  {
-    DWORD dwType;     // must be 0x1000
-    LPCSTR szName;    // pointer to name (in user's address space)
-    DWORD dwThreadID; // Thread ID (-1 = caller thread)
-    DWORD dwFlags;    // reserved for future use, must be zero
-  } THREADNAME_INFO;
+	typedef struct tagTHREADNAME_INFO
+	{
+		DWORD dwType;     // must be 0x1000
+		LPCSTR szName;    // pointer to name (in user's address space)
+		DWORD dwThreadID; // Thread ID (-1 = caller thread)
+		DWORD dwFlags;    // reserved for future use, must be zero
+	} THREADNAME_INFO;
 private:
 	void SetName();
 	void TAnalyseDiskThread::update();

@@ -9,7 +9,7 @@
 
 #define ConstantsH 1
 
-const int NB_MAX_TRACKS=85;
-const int NB_MAX_SECTORS_PER_TRACK=12;
+const int NB_MAX_TRACKS = 85;
+const int NB_MAX_SECTORS_PER_TRACK = 12;
 
 #endif // ConstantsH

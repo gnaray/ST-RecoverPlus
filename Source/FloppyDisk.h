@@ -21,10 +21,10 @@
 
 
 
-	#define ColorSectorNotRead (0xffffff)
-	#define ColorSectorReadOK (0xff00)
-	#define ColorSectorError (0xff)
-	#define ColorSectorDifficult (0xff0000)
+#define ColorSectorNotRead (0xffffff)
+#define ColorSectorReadOK (0xff00)
+#define ColorSectorError (0xff)
+#define ColorSectorDifficult (0xff0000)
 
 
 
@@ -33,26 +33,26 @@
 
 
 
-	struct SSectors
-	{
-		bool	is_read[85][12];
-		bool	difficult_to_read[85][12];
-		bool	error[85][12];
-	};
+struct SSectors
+{
+	bool	is_read[85][12];
+	bool	difficult_to_read[85][12];
+	bool	error[85][12];
+};
 
 
-	#pragma pack(push,1)
-	struct FD_TIMED_SCAN_RESULT_32 // based on FD_TIMED_SCAN_RESULT
-	{
-			BYTE count;                         // count of returned headers
-			BYTE firstseen;                     // offset of first sector detected
-			DWORD tracktime;                    // total time for track (in microseconds)
-			FD_TIMED_ID_HEADER Headers[32];
-	};
-	#pragma pack(pop)
-	#if ((sizeof(FD_TIMED_SCAN_RESULT)+sizeof(FD_TIMED_ID_HEADER)*32) != (sizeof(FD_TIMED_SCAN_RESULT_32)))
-		#error CHRIS : FD_TIMED_SCAN_RESULT must have been modified in fdrawcmd.h.
-	#endif
+#pragma pack(push,1)
+struct FD_TIMED_SCAN_RESULT_32 // based on FD_TIMED_SCAN_RESULT
+{
+	BYTE count;                         // count of returned headers
+	BYTE firstseen;                     // offset of first sector detected
+	DWORD tracktime;                    // total time for track (in microseconds)
+	FD_TIMED_ID_HEADER Headers[32];
+};
+#pragma pack(pop)
+#if ((sizeof(FD_TIMED_SCAN_RESULT)+sizeof(FD_TIMED_ID_HEADER)*32) != (sizeof(FD_TIMED_SCAN_RESULT_32)))
+#error CHRIS : FD_TIMED_SCAN_RESULT must have been modified in fdrawcmd.h.
+#endif
 
 
 
@@ -63,7 +63,7 @@ private:	// User declarations
 	class TTrack*	current_Track;
 
 
-	bool	init_current_track(unsigned track,unsigned side);
+	bool	init_current_track(unsigned track, unsigned side);
 
 public:		// User declarations
 
@@ -96,8 +96,8 @@ public:		// User declarations
 	bool	Win9X;
 	bool	fdrawcmd_sys_installed;
 
-	#pragma pack(push) 
-	#pragma pack (1) // Byte-accurate alignment: essential here.
+#pragma pack(push)
+#pragma pack (1) // Byte-accurate alignment: essential here.
 	struct t_Atari_ST_boot_sector
 	{
 		unsigned __int16	branching; // 0
@@ -116,11 +116,11 @@ public:		// User declarations
 		unsigned __int16	Nb_sectors_per_track; // 24
 		unsigned __int16	Nb_sides; // 26 ( = nb of heads).
 		unsigned __int16	Nb_hidden_sectors; // 28
-		unsigned __int8	content[510-30]; // 30
+		unsigned __int8	content[510 - 30]; // 30
 		unsigned __int16	Checksum; // 510 (ST bootable: $1234, i.e. 0x3412 ?).
 	} Atari_ST_Boot_Sector;   // Must be 512 bytes, due to "sizeof".
-	BYTE   _possible_continuation_of_the_boot_sector[4096-512]; // Stick after "Atari_ST_Boot_Sector".
-	#pragma pack(pop)
+	BYTE   _possible_continuation_of_the_boot_sector[4096 - 512]; // Stick after "Atari_ST_Boot_Sector".
+#pragma pack(pop)
 
 
 

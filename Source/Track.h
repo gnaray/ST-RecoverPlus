@@ -20,30 +20,30 @@
 #define CP_NB_MAX_SECTORS_PER_RAW_TRACK (6400/128)
 
 
-	struct SSector
-	{
-		//int		Number_1based;
-		bool	Read_correctly;
-		bool	Normal_reading_by_controller_tried; // Normal reading by controller.
-		bool	Normal_reading_by_controller_success;
-		//bool	Reading_of_Raw_Track_tried; // Reading from the raw track.
-		bool	Reading_of_Raw_Track_success; // Reading from the raw track.
-		int		Reading_tried_number; // 1=Read at the 1st. Otherwise, it was more difficult.
-		int		Byte_size;
-		//std::vector<BYTE>*	pContent; // Memory.
-		BYTE*	pContent; // Memory.
-	};
+struct SSector
+{
+	//int		Number_1based;
+	bool	Read_correctly;
+	bool	Normal_reading_by_controller_tried; // Normal reading by controller.
+	bool	Normal_reading_by_controller_success;
+	//bool	Reading_of_Raw_Track_tried; // Reading from the raw track.
+	bool	Reading_of_Raw_Track_success; // Reading from the raw track.
+	int		Reading_tried_number; // 1=Read at the 1st. Otherwise, it was more difficult.
+	int		Byte_size;
+	//std::vector<BYTE>*	pContent; // Memory.
+	BYTE*	pContent; // Memory.
+};
 
-	// TODO: "STrackInfo" should be deleted, in favor of the simple TTrack.
-	struct STrackInfo
-	{
-		bool							OperationSuccess;
-		//unsigned __int8*				TrackContent;
-		//unsigned						TrackSize;
-		//FD_SCAN_RESULT*				fdrawcmd_Scan_Result; // KEEP for later.
-		struct FD_TIMED_SCAN_RESULT_32*	fdrawcmd_Timed_Scan_Result; // N° sectors 1-based.
-	};
-	
+// TODO: "STrackInfo" should be deleted, in favor of the simple TTrack.
+struct STrackInfo
+{
+	bool							OperationSuccess;
+	//unsigned __int8*				TrackContent;
+	//unsigned						TrackSize;
+	//FD_SCAN_RESULT*				fdrawcmd_Scan_Result; // KEEP for later.
+	struct FD_TIMED_SCAN_RESULT_32*	fdrawcmd_Timed_Scan_Result; // N° sectors 1-based.
+};
+
 
 
 // ===================== The class in itself =========================
@@ -59,7 +59,7 @@ public:
 		unsigned	Index_In_Decoded_Track_Content; // Sector data in the decoded track.
 		bool		Sector_Identified;
 		bool		ID_found_directly;
-		
+
 		// The following ID values are only valid if an ID has been found for this sector.
 		unsigned	Track_ID;
 		unsigned	Side_ID;
@@ -76,8 +76,8 @@ private:	// User declarations.
 	struct SSectorInfoInRawTrack16kb
 	{
 		unsigned	Nb_Sectors_found; // Including repetitives.
-		unsigned __int8		Encoded_Track_Content[16*1024];
-		unsigned __int8		Decoded_Track_Content[16*1024];
+		unsigned __int8		Encoded_Track_Content[16 * 1024];
+		unsigned __int8		Decoded_Track_Content[16 * 1024];
 		_SSectorInfoInRawTrack	Sector_Infos[128]; // About 128 sectors of 128 bytes is the maximum in a raw track of 6,250 bytes read more times but on 16 KB ..
 	};
 	//struct SSectorInfoInRawTrack16kb CP_Raw_Track_Result;
@@ -130,7 +130,7 @@ private:	// User declarations.
 		TStrings* LOG_strings,
 		int track_1_turn_duration); // In microseconds.
 
-	bool DecodeTrack (SSectorInfoInRawTrack16kb* Result);
+	bool DecodeTrack(SSectorInfoInRawTrack16kb* Result);
 
 
 public:		// User declarations.

@@ -44,7 +44,7 @@ void TAccessDiskThread::SetName()
 
 	__try
 	{
-		RaiseException( 0x406D1388, 0, sizeof(info)/sizeof(DWORD),(DWORD*)&info );
+		RaiseException(0x406D1388, 0, sizeof(info) / sizeof(DWORD), (DWORD*)&info);
 	}
 	__except (EXCEPTION_CONTINUE_EXECUTION)
 	{
@@ -56,18 +56,18 @@ void __fastcall TAccessDiskThread::Execute()
 	SetName();
 	//---- Place the thread code here ----
 
-	if (floppy_disk==NULL)
+	if (floppy_disk == NULL)
 	{
-		this->ReturnValue=false;
+		this->ReturnValue = false;
 		return;
 	}
 
 	// Create the file to save disk image:
 
-	const HANDLE himagefile=CreateFile(
+	const HANDLE himagefile = CreateFile(
 		GUIForm1->SaveDialogDiskImage->FileName.c_str(),//LPCTSTR lpFileName,
-		GENERIC_WRITE ,//DWORD dwDesiredAccess,
-		FILE_SHARE_READ ,//DWORD dwShareMode,
+		GENERIC_WRITE,//DWORD dwDesiredAccess,
+		FILE_SHARE_READ,//DWORD dwShareMode,
 		NULL, //LPSECURITY_ATTRIBUTES lpSecurityAttributes,
 		CREATE_ALWAYS,//DWORD dwCreationDisposition,
 		FILE_ATTRIBUTE_NORMAL,//DWORD dwFlagsAndAttributes,
@@ -78,9 +78,9 @@ void __fastcall TAccessDiskThread::Execute()
 	}
 
 
-	ThreadRunning=true;
+	ThreadRunning = true;
 
-	const DWORD maxi_hour=
+	const DWORD maxi_hour =
 		Time_ComboBoxMaxiTime_in_ms[GUIForm1->ComboBoxMaxiTime->ItemIndex]
 		+ GetTickCount();
 
@@ -88,65 +88,65 @@ void __fastcall TAccessDiskThread::Execute()
 	std::vector<BYTE> phrase;
 	{
 		phrase.reserve(floppy_disk->NbBytesPerSector);
-		const BYTE repetition[]="======== SORRY, THIS SECTOR CANNOT BE READ FROM FLOPPY DISK BY ST RECOVER. ========\r\n";
-		for (unsigned iph=0;iph<floppy_disk->NbBytesPerSector;iph+=sizeof(repetition)-1)
+		const BYTE repetition[] = "======== SORRY, THIS SECTOR CANNOT BE READ FROM FLOPPY DISK BY ST RECOVER. ========\r\n";
+		for (unsigned iph = 0; iph < floppy_disk->NbBytesPerSector; iph += sizeof(repetition) - 1)
 		{
-			int tcop=sizeof(repetition)-1;
-			if ((iph+tcop) > floppy_disk->NbBytesPerSector)
-				tcop=floppy_disk->NbBytesPerSector-iph;
-			memcpy(&phrase[iph],repetition,tcop);
+			int tcop = sizeof(repetition) - 1;
+			if ((iph + tcop) > floppy_disk->NbBytesPerSector)
+				tcop = floppy_disk->NbBytesPerSector - iph;
+			memcpy(&phrase[iph], repetition, tcop);
 		}
 	}
 
-	SSector*	p_sector_infos=NULL;
+	SSector*	p_sector_infos = NULL;
 
 
 
 
-		// Reading sectors
+	// Reading sectors
 
-	for (int p=0; p<floppy_disk->NbTracks; p++ )
+	for (int p = 0; p < floppy_disk->NbTracks; p++)
 	{
 		if (Terminated)
 		{
 			break;
 		}
-		for (int f=0; f<floppy_disk->NbSides; f++ )
+		for (int f = 0; f < floppy_disk->NbSides; f++)
 		{
 			if (Terminated)
 			{
 				break;
 			}
 			static BYTE Track_sectors_content[6400];
-			BYTE*		pContent=Track_sectors_content;
-			grid=
-				f==0 ? GUIForm1->DrawGridSideASectors : GUIForm1->DrawGridSideBSectors;
-			SSectors* sects=
-				f==0 ? &floppy_disk->SectorsSideA : &floppy_disk->SectorsSideB;
-			for (int s=0; s<floppy_disk->NbSectorsPerTrack; s++)
+			BYTE*		pContent = Track_sectors_content;
+			grid =
+				f == 0 ? GUIForm1->DrawGridSideASectors : GUIForm1->DrawGridSideBSectors;
+			SSectors* sects =
+				f == 0 ? &floppy_disk->SectorsSideA : &floppy_disk->SectorsSideB;
+			for (int s = 0; s < floppy_disk->NbSectorsPerTrack; s++)
 			{
 				if (Terminated)
 				{
 					break;
 				}
-				const bool OK=floppy_disk->CD_ReadSector(p,f,s,
-					maxi_hour-GetTickCount(),GUIForm1->MemoLOG->Lines,
+				const bool OK = floppy_disk->CD_ReadSector(p, f, s,
+					maxi_hour - GetTickCount(), GUIForm1->MemoLOG->Lines,
 					&p_sector_infos, &GUIForm1->PleaseCancelCurrentOperation,
-					GUIForm1->CheckBoxSaveRawTrackInfos->Checked );
-				if ( ! GUIForm1->PleaseCancelCurrentOperation)
+					GUIForm1->CheckBoxSaveRawTrackInfos->Checked);
+				if (!GUIForm1->PleaseCancelCurrentOperation)
 				{
-					sects->is_read[p][s]=true;
-					sects->difficult_to_read[p][s]= // Difficulty if we could not read in normal mode (with simple controller).
+					sects->is_read[p][s] = true;
+					sects->difficult_to_read[p][s] = // Difficulty if we could not read in normal mode (with simple controller).
 						p_sector_infos->Normal_reading_by_controller_tried
-						&& ! p_sector_infos->Normal_reading_by_controller_success;
+						&& !p_sector_infos->Normal_reading_by_controller_success;
 					sects->error[p][s] = OK;
-					if (((pContent-Track_sectors_content)+p_sector_infos->Byte_size)<=(int)sizeof(Track_sectors_content))
+					if (((pContent - Track_sectors_content) + p_sector_infos->Byte_size) <= (int)sizeof(Track_sectors_content))
 					{
 						if (OK) // We copy the data in the sector.
-							memcpy(pContent,p_sector_infos->pContent,p_sector_infos->Byte_size);
+							memcpy(pContent, p_sector_infos->pContent, p_sector_infos->Byte_size);
 						else // If the sector could not read, we put a sentence as content, otherwise we would have a discrepancy in the disk image.
 						{
-								memcpy(pContent,&phrase[0],p_sector_infos->Byte_size);
+							memcpy(pContent, &phrase[0], p_sector_infos->Byte_size);
 						}
 						pContent += p_sector_infos->Byte_size;// InfosSect->Size;
 					}
@@ -157,11 +157,11 @@ void __fastcall TAccessDiskThread::Execute()
 				} // endif ( ! Terminated)
 			}
 			{
-				DWORD NumberOfBytesWritten=0;
+				DWORD NumberOfBytesWritten = 0;
 				/*BOOL writing_ok=*/ WriteFile(
 					himagefile,//HANDLE hFile,
 					Track_sectors_content,//LPCVOID lpBuffer,
-					pContent-Track_sectors_content,//DWORD nNumberOfBytesToWrite,
+					pContent - Track_sectors_content,//DWORD nNumberOfBytesToWrite,
 					&NumberOfBytesWritten,//LPDWORD lpNumberOfBytesWritten,
 					NULL);//LPOVERLAPPED lpOverlapped
 			}
@@ -174,8 +174,8 @@ void __fastcall TAccessDiskThread::Execute()
 
 	CloseHandle(himagefile);
 
-	ThreadRunning=false;
-	this->ReturnValue=true;
+	ThreadRunning = false;
+	this->ReturnValue = true;
 }
 //---------------------------------------------------------------------------
 void __fastcall TAccessDiskThread::UpdateDisplay()

@@ -35,7 +35,7 @@
 5		Giveup after 5 h
 6		Never giveup (well, after 20 days)
 */
-const int Time_ComboBoxMaxiTime_in_ms[7]={ 300000,900000,1800000,3600000,7200000,18000000,1728000000 };
+const int Time_ComboBoxMaxiTime_in_ms[7] = { 300000,900000,1800000,3600000,7200000,18000000,1728000000 };
 
 
 //---------------------------------------------------------------------------
@@ -62,11 +62,11 @@ __published:	// Components managed by EDI
 	TCheckBox *CheckBoxSaveRawTrackInfos;
 	void __fastcall ButtonReadDiskClick(TObject *Sender);
 	void __fastcall DrawGridSideASectorsDrawCell(TObject *Sender, int ACol,
-          int ARow, TRect &Rect, TGridDrawState State);
+		int ARow, TRect &Rect, TGridDrawState State);
 	void __fastcall ButtonAnalyseClick(TObject *Sender);
 	void __fastcall BitBtnCancelClick(TObject *Sender);
 	void __fastcall DrawGridSideASectorsMouseMove(TObject *Sender,
-          TShiftState Shift, int X, int Y);
+		TShiftState Shift, int X, int Y);
 protected:
 	void __fastcall On_recover_maj_FormAnalyse_track(TMessage &Message);
 	BEGIN_MESSAGE_MAP  // See http://www.programmez.com/tutoriels.php?tutoriel=38&titre=Les-messages-Windows-personnalises-avec-C++-Builder
