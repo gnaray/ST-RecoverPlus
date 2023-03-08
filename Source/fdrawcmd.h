@@ -1,4 +1,4 @@
-// fdrawcmd.sys 1.0.1.10
+// fdrawcmd.sys 1.0.1.11
 //
 // Low-level floppy filter, by Simon Owen
 //
@@ -11,7 +11,7 @@
 #include <winioctl.h>
 #endif
 
-#define FDRAWCMD_VERSION                0x0100010a      // Compile-time version, for structures and definitions below
+#define FDRAWCMD_VERSION                0x0100010b      // Compile-time version, for structures and definitions below
                                                         // Must be checked with run-time driver for compatibility
 
 #define FD_CTL_CODE(i,m)                CTL_CODE(FILE_DEVICE_UNKNOWN, i, m, FILE_READ_DATA|FILE_WRITE_DATA)
@@ -292,7 +292,8 @@ typedef struct tagFD_RAW_READ_PARAMS
 }
 FD_RAW_READ_PARAMS, *PFD_RAW_READ_PARAMS;
 
+
 #pragma warning(pop)
 #pragma pack(pop)
 
-#endif
+#endif  // FDRAWCMD_H
