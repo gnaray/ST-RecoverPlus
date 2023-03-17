@@ -1,0 +1,5 @@
+c0w32.obj GUIForm1.obj AccessDiskThread.obj AnalyseDiskThread.obj FloppyDisk.obj Track.obj ST_RecoverPlus.obj vcl.bpi rtl.bpi memmgr.lib sysinit.obj
+ST_RecoverPlus.exe
+/Gn/L"c:\Program Files\Borland\CBuilder6\lib\";"c:\Program Files\Borland\CBuilder6\lib\obj";"c:\Program Files\Borland\CBuilder6\lib\debug"/c/x/aa/Tpe
+import32.lib cw32.lib vcl.lib rtl.lib
+,ST_RecoverPlus.res
