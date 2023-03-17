@@ -1,0 +1,5 @@
+c0w32.obj Unit1.obj Acces_disque.obj Analyse_disque.obj Classe_Disquette.obj Classe_Piste.obj ST_Recover.obj vcl.bpi rtl.bpi memmgr.lib sysinit.obj
+ST_Recover.exe
+/Gn/L"c:\Program Files\Borland\BDS\4.0\lib\";"c:\Program Files\Borland\BDS\4.0\lib\obj";"c:\Program Files\Borland\BDS\4.0\lib\debug"/c/x/aa/Tpe
+import32.lib cw32.lib vcl.lib rtl.lib
+,ST_Recover.res
