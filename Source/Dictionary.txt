@@ -1,0 +1,9 @@
+piste = track
+face = side
+secteur = sector
+disquette = floppy disk
+disque = disk
+essaye = try
+essayée = tried
+réussie = successful
+lecteur = floppy drive
