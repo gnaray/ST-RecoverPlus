@@ -8,6 +8,7 @@
 
 
 #include "Track.h"
+#include "FdrawcmdSys.h"
 
 
 //---------------------------------------------------------------------------
@@ -473,15 +474,19 @@ bool	TTrack::CP_ReadSector(
 				{
 					if ((nb_tries_here % 16) == 15) // Every 16 loops, we recalibrate the head... just in case.
 					{
-						DeviceIoControl(floppy_disk->hDevice, IOCTL_FDCMD_RECALIBRATE, NULL, 0, NULL, 0, &dwRet, NULL);
+//						DeviceIoControl(floppy_disk->hDevice, IOCTL_FDCMD_RECALIBRATE, NULL, 0, NULL, 0, &dwRet, NULL);
+						FdCmdRecalibrate(floppy_disk->hDevice);
 						// seek to cyl "track"
 						CP_select_track_and_side(floppy_disk, track, side);
 					}
 
 
 					// read sector
-					is_sector_read = DeviceIoControl(floppy_disk->hDevice, IOCTL_FDCMD_READ_DATA, &rwp,
-						sizeof(rwp), pSectorMemory, floppy_disk->NbBytesPerSector, &dwRet, NULL);
+//					is_sector_read = DeviceIoControl(floppy_disk->hDevice, IOCTL_FDCMD_READ_DATA, &rwp,
+//						sizeof(rwp), pSectorMemory, floppy_disk->NbBytesPerSector, &dwRet, NULL);
+					is_sector_read = FdCmdRead(floppy_disk->hDevice, FD_OPTION_MFM, side, track, side,
+						sector_0based + 1, 2, 1, // 1-based.
+						pSectorMemory, LengthToSizeCode(floppy_disk->NbBytesPerSector));
 
 					sector->Reading_tried_number++;
 					sector->Normal_reading_by_controller_tried = true; // VERY IMPORTANT: we set 'true', whether the reading was successful or not.
@@ -578,7 +583,7 @@ bool	TTrack::CP_ReadSector(
 							sector->pContent = p;
 						}
 					} // endif (is_sector_read && (!determine_architecture))
-			} // endif DeviceIoControl(floppy_disk->hDevice, IOCTL_FDCMD_SEEK, &sp, sizeof(sp), NULL, 0, &dwRet, NULL);
+			} // endif CP_select_track_and_side(floppy_disk, track, side);
 		} // endif ( ! floppy_disk->fdrawcmd_sys_installed)
 	} // endif (floppy_disk->Win9X)
 
@@ -597,26 +602,15 @@ bool	TTrack::CP_select_track_and_side(
 
 	// With this driver (fdrawcmd.sys), we are forced to use another method.
 	DWORD dwRet;
-	FD_READ_WRITE_PARAMS rwp;
 	FD_SEEK_PARAMS sp;
-
-	// details of sector to read
-	rwp.flags = FD_OPTION_MFM;
-	rwp.phead = side;
-	rwp.cyl = track;
-	rwp.head = side;
-	rwp.sector = 1; // 1-based.
-	rwp.size = 2;
-	rwp.eot = 1 + 1; // Sector 'next' last to read, 1-based.
-	rwp.gap = 0x0a;
-	rwp.datalen = 0xff;
 
 	// details of seek location
 	sp.cyl = track;
 	sp.head = side;
 
 	// seek to cyl "track"
-	return DeviceIoControl(floppy_disk->hDevice, IOCTL_FDCMD_SEEK, &sp, sizeof(sp), NULL, 0, &dwRet, NULL);
+//	return DeviceIoControl(floppy_disk->hDevice, IOCTL_FDCMD_SEEK, &sp, sizeof(sp), NULL, 0, &dwRet, NULL);
+	return FdCmdSeek(floppy_disk->hDevice, track, side);
 }
 //---------------------------------------------------------------------------
 bool	TTrack::CP_analyse_raw_track(// The raw track is read.
@@ -1151,6 +1145,7 @@ bool TTrack::ReadRawTrackSectors( // Reads the currently selected track.
 		return false;
 	}
 
+/*
 	FD_READ_WRITE_PARAMS rwp =
 	{ FD_OPTION_MFM,
 	floppy_disk->direct_infos.Selected_Side,
@@ -1168,6 +1163,16 @@ bool TTrack::ReadRawTrackSectors( // Reads the currently selected track.
 			&Result->Encoded_Track_Content,//		 pv_,
 			16384,//uLength_,
 			&dwRet, NULL);
+*/
+	bool OK = FdCmdReadTrack(floppy_disk->hDevice, FD_OPTION_MFM,
+		floppy_disk->direct_infos.Selected_Side,
+		floppy_disk->direct_infos.Selected_Track,
+		floppy_disk->direct_infos.Selected_Side,
+		1,//start_
+		7,//size_ :  127<<7 = 16384 bytes.
+		255,// eot_, // or 1 ?
+		Result->Encoded_Track_Content, 16384);
+
 	if (OK)
 	{
 		OK &= DecodeTrack(Result);
@@ -1358,7 +1363,9 @@ STrackInfo*	TTrack::CP_Analyse_Sectors_Time( // Analyzes the track, and provides
 		returned_infos.fdrawcmd_Timed_Scan_Result = &tsr;
 
 		// seek and scan track
-		OK &= DeviceIoControl(floppy_disk->hDevice, IOCTL_FD_TIMED_SCAN_TRACK, &sp, sizeof(sp), &tsr, sizeof(tsr), &dwRet, NULL);
+//		OK &= DeviceIoControl(floppy_disk->hDevice, IOCTL_FD_TIMED_SCAN_TRACK, &sp, sizeof(sp), &tsr, sizeof(tsr), &dwRet, NULL);
+		OK &= FdCmdTimedScan(floppy_disk->hDevice, FD_OPTION_MFM, side,
+			reinterpret_cast<FD_TIMED_SCAN_RESULT*>(&tsr), sizeof(tsr));
 	}
 
 	returned_infos.OperationSuccess = OK;

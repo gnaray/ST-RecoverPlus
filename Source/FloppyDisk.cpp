@@ -8,6 +8,7 @@
 #pragma hdrstop
 
 #include "FloppyDisk.h"
+#include "FdrawcmdSys.h"
 #include "Constants.h"
 
 
@@ -34,6 +35,8 @@ bool		TFloppyDisk::OpenFloppyDisk(unsigned floppy_drive, // floppy_drive: 0=A , 
 	volatile bool*	p_canceller, // If this variable becomes true, the current operation is cancelled.
 	bool save_raw_track_infos)
 {
+	SetFdCmdLogger(LOG_strings);
+
 	KnownDiskArchitecture = false;
 	const DWORD time_limit = GetTickCount() + allowed_time_ms;
 
@@ -95,21 +98,25 @@ bool		TFloppyDisk::OpenFloppyDisk(unsigned floppy_drive, // floppy_drive: 0=A , 
 			// With this driver (fdrawcmd.sys), we are forced to use another method.
 			DWORD dwRet;
 			// We better reset the floppy disk controller.
-			OK = DeviceIoControl(hDevice, IOCTL_FD_RESET, NULL, NULL, NULL, 0, &dwRet, NULL);
+//			OK = DeviceIoControl(hDevice, IOCTL_FD_RESET, NULL, NULL, NULL, 0, &dwRet, NULL);
+			OK = FdCmdReset(hDevice);
 			direct_infos.Selected_Track = 0; // The head is currently placed here.
 			direct_infos.Selected_Side = 0; // This side is currently selected.
 			direct_infos.Sector_under_treatment_0based = 0; // à priori.
 
 				  // Checks whether a disk is present in the drive.
-			OK &= DeviceIoControl(hDevice, IOCTL_FD_CHECK_DISK, NULL, NULL, NULL, 0, &dwRet, NULL);
+//			OK &= DeviceIoControl(hDevice, IOCTL_FD_CHECK_DISK, NULL, NULL, NULL, 0, &dwRet, NULL);
+			OK &= FdCmdCheckDisk(hDevice);
 
 			// Recalibrate the track.
-			OK &= DeviceIoControl(hDevice, IOCTL_FDCMD_RECALIBRATE, NULL, 0, NULL, 0, &dwRet, NULL);
+//			OK &= DeviceIoControl(hDevice, IOCTL_FDCMD_RECALIBRATE, NULL, 0, NULL, 0, &dwRet, NULL);
+			OK &= FdCmdRecalibrate(hDevice);
 
 			// Set data rate to double-density.
 			BYTE datarate;
 			datarate = FD_RATE_250K;
-			OK &= DeviceIoControl(hDevice, IOCTL_FD_SET_DATA_RATE, &datarate, sizeof(datarate), NULL, 0, &dwRet, NULL);
+//			OK &= DeviceIoControl(hDevice, IOCTL_FD_SET_DATA_RATE, &datarate, sizeof(datarate), NULL, 0, &dwRet, NULL);
+			OK &= FdCmdSetEncRate(hDevice, true, datarate);
 		}
 	}
 

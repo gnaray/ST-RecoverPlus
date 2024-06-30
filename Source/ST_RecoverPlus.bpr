@@ -5,7 +5,7 @@
     <VERSION value="BCB.06.00"/>
     <PROJECT value="ST_RecoverPlus.exe"/>
     <OBJFILES value="ST_RecoverPlus.obj GUIForm1.obj AccessDiskThread.obj AnalyseDiskThread.obj 
-      FloppyDisk.obj Track.obj"/>
+      FloppyDisk.obj Track.obj FdrawcmdSys.obj"/>
     <RESFILES value="ST_RecoverPlus.res"/>
     <IDLFILES value=""/>
     <IDLGENFILES value=""/>
@@ -56,6 +56,7 @@
       <FILE FILENAME="AnalyseDiskThread.cpp" FORMNAME="" UNITNAME="AnalyseDiskThread.cpp" CONTAINERID="CCompiler" DESIGNCLASS="" LOCALCOMMAND=""/>
       <FILE FILENAME="FloppyDisk.cpp" FORMNAME="" UNITNAME="FloppyDisk.cpp" CONTAINERID="CCompiler" DESIGNCLASS="" LOCALCOMMAND=""/>
       <FILE FILENAME="Track.cpp" FORMNAME="" UNITNAME="Track.cpp" CONTAINERID="CCompiler" DESIGNCLASS="" LOCALCOMMAND=""/>
+      <FILE FILENAME="FdrawcmdSys.cpp" FORMNAME="" UNITNAME="FdrawcmdSys" CONTAINERID="CCompiler" DESIGNCLASS="" LOCALCOMMAND=""/>
   </FILELIST>
   <BUILDTOOLS>
   </BUILDTOOLS>
